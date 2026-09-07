@@ -1,0 +1,77 @@
+name: Compilar APK Debug (Sin Caché)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Compilar APK Debug con Motor Nativo (C++, Rust, Lua)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código fuente del repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Configurar Java JDK 17 (Sin Caché)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          # Sin parámetro cache para garantizar compilación limpia y sin estados previos
+
+      - name: Instalar dependencias del sistema para C, C++ y Lua
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            liblua5.4-dev \
+            lua5.4 \
+            pkg-config
+
+      - name: Configurar Rust Toolchain y targets Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android NDK (26.1.10909125) y CMake (3.22.1)
+        run: |
+          yes | sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Asignar permisos de ejecución a los scripts
+        run: |
+          chmod +x ./build_debug_apk.sh
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          fi
+
+      - name: Generar firma Debug desde cero y compilar APK (Sin Caché)
+        run: |
+          ./build_debug_apk.sh
+
+      - name: Subir APK Debug generado como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK-Extractor-Debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,15 @@
+feat: integrar extracción de APKs instaladas, motor multilenguaje y documentación
+
+- Agregar extracción directa de aplicaciones instaladas por el usuario y del sistema mediante PackageManager y QUERY_ALL_PACKAGES con streaming a caché
+- Crear pantalla dedicada InstalledAppsScreen con búsqueda interactiva y filtros
+- Integrar código fuente oficial en C de Lua 5.4.7 en app/src/main/cpp/lua/
+- Configurar soporte nativo de C11 y C++17 mediante CMakeLists.txt y native_bridge.c
+- Integrar estructura Rust Core en app/src/main/cpp/rust_core/ con Cargo.toml
+- Crear puente NativeEngineBridge para monitorear el estado del stack multilenguaje
+- Configurar exclusiones en .gitignore para artefactos temporales de C, C++, Rust y Lua
+- Agregar documentación técnica: README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md y AGENTS.md
+- Configurar workflow de GitHub Actions para override de mensaje de commit
+- Vincular y compilar motor nativo libapk_native_engine.so mediante CMake 3.22.1 y NDK 26.1 con soporte C, C++, Rust ABI y Lua
+- Integrar dependencia de industria com.jaredrummler:apk-parser:1.0.2 para decodificación y deconstrucción de AXML (Android Binary XML)
+- Implementar visor y editor de código móvil con numeración de líneas, alternancia entre modo lectura y edición, y detección de cambios sin guardar
+- Agregar guardado persistente de archivos editados en caché temporal con recálculo instantáneo de hashes SHA-256 y tamaño en disco

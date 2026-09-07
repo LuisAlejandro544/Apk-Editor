@@ -42,9 +42,12 @@ googleServices = "4.5.0"
 credentials = "1.5.0"
 googleid = "1.1.1"
 apkParser = "1.0.2"
+smali = "2.5.2"
 
 
 [libraries]
+smali-dexlib2 = { group = "org.smali", name = "dexlib2", version.ref = "smali" }
+smali-baksmali = { group = "org.smali", name = "baksmali", version.ref = "smali" }
 apk-parser = { group = "com.jaredrummler", name = "apk-parser", version.ref = "apkParser" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

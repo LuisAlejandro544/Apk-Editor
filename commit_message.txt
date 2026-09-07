@@ -1,15 +1,10 @@
-feat: integrar extracción de APKs instaladas, motor multilenguaje y documentación
+feat: visor y desensamblador DEX en smali y java con persistencia y edición
 
-- Agregar extracción directa de aplicaciones instaladas por el usuario y del sistema mediante PackageManager y QUERY_ALL_PACKAGES con streaming a caché
-- Crear pantalla dedicada InstalledAppsScreen con búsqueda interactiva y filtros
-- Integrar código fuente oficial en C de Lua 5.4.7 en app/src/main/cpp/lua/
-- Configurar soporte nativo de C11 y C++17 mediante CMakeLists.txt y native_bridge.c
-- Integrar estructura Rust Core en app/src/main/cpp/rust_core/ con Cargo.toml
-- Crear puente NativeEngineBridge para monitorear el estado del stack multilenguaje
-- Configurar exclusiones en .gitignore para artefactos temporales de C, C++, Rust y Lua
-- Agregar documentación técnica: README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md y AGENTS.md
-- Configurar workflow de GitHub Actions para override de mensaje de commit
-- Vincular y compilar motor nativo libapk_native_engine.so mediante CMake 3.22.1 y NDK 26.1 con soporte C, C++, Rust ABI y Lua
-- Integrar dependencia de industria com.jaredrummler:apk-parser:1.0.2 para decodificación y deconstrucción de AXML (Android Binary XML)
-- Implementar visor y editor de código móvil con numeración de líneas, alternancia entre modo lectura y edición, y detección de cambios sin guardar
-- Agregar guardado persistente de archivos editados en caché temporal con recálculo instantáneo de hashes SHA-256 y tamaño en disco
+- Integrar librerías de industria org.smali:dexlib2 y org.smali:baksmali (2.5.2) en Gradle
+- Crear DexDisassembler con soporte para indexar clases, generar resúmenes y desensamblar bytecode Dalvik exacto
+- Implementar DexToJavaTranslator para reconstruir clases, imports, campos, constructores y métodos en sintaxis Java limpia
+- Diseñar selector interactivo de clases DEX en FileDetailScreen con búsqueda y filtrado en tiempo real
+- Añadir selector de modo de vista entre 'Crudo (Smali)' y 'Java' en el editor de archivos
+- Habilitar modificación directa del código y guardado persistente en disco con recálculo dinámico de SHA-256 y tamaño
+- Agregar pruebas unitarias en DexViewerUnitTest para verificación de lectura y manejo controlado de errores
+- Actualizar documentación técnica (README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md)

@@ -15,11 +15,13 @@ Este documento describe las fases de evolución técnica planificadas para conve
 
 ---
 
-## Fase 2: Decompilación y Análisis DEX / XML Binario (En Progreso)
+## Fase 2: Decompilación y Análisis DEX / XML Binario (Completada)
 - [x] **Decodificador de AXML (apk-parser)**: Conversión y desensamblado transparente de `AndroidManifest.xml` y layouts binarios a XML legible estructurado.
-- [x] **Editor de Líneas de Código en Móvil**: Entorno de edición y visualización con numeración de líneas, detección de cambios y persistencia en caché temporal con recálculo de SHA-256.
+- [x] **Visor y Desensamblador DEX en Crudo (Smali)**: Integración de `org.smali:dexlib2` y `baksmali:2.5.2` para desensamblado exacto de bytecode Dalvik a Smali.
+- [x] **Descompilador DEX a Java**: Traductor estructural `DexToJavaTranslator` que reconstruye clases, imports, campos, constructores, firmas de métodos y pseudocódigo de alto nivel en sintaxis Java legible.
+- [x] **Selector Modal de Clases DEX**: Hoja inferior interactiva para buscar y filtrar clases dentro de cualquier archivo `.dex`.
+- [x] **Editor de Código con Persistencia**: Soporte para modificar y guardar archivos DEX/Smali/Java y texto en caché con recálculo dinámico de integridad SHA-256 y tamaño en disco.
 - [ ] **Parser de `resources.arsc`**: Explorar la tabla de strings, identificadores de recursos e internacionalización.
-- [ ] **Desensamblador Smali / Dalvik**: Integración del motor de desensamblado para visualizar métodos e instrucciones de `classes*.dex`.
 - [ ] **Análisis de Permisos y Componentes**: Extractor de Activities, Services, Receivers y Providers declarados en la app.
 
 ---

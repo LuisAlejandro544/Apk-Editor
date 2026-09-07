@@ -42,14 +42,18 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.withContext
+import com.example.util.AppDispatchers
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -315,18 +319,25 @@ fun InstalledAppCard(
         .padding(14.dp),
       verticalAlignment = Alignment.CenterVertically
     ) {
-      // App Icon
-      val iconBitmap = remember(app.iconDrawable) {
-        try {
-          app.iconDrawable?.toBitmap(width = 96, height = 96)?.asImageBitmap()
-        } catch (_: Throwable) {
-          null
+      // App Icon (Decodificado asíncronamente en hilo secundario para 60-120fps fluidos)
+      var iconBitmap by remember(app.packageName) { mutableStateOf<ImageBitmap?>(null) }
+      LaunchedEffect(app.iconDrawable) {
+        if (app.iconDrawable != null) {
+          val bmp = withContext(AppDispatchers.FastIODispatcher) {
+            try {
+              app.iconDrawable.toBitmap(width = 96, height = 96).asImageBitmap()
+            } catch (_: Throwable) {
+              null
+            }
+          }
+          iconBitmap = bmp
         }
       }
 
-      if (iconBitmap != null) {
+      val currentIcon = iconBitmap
+      if (currentIcon != null) {
         Image(
-          bitmap = iconBitmap,
+          bitmap = currentIcon,
           contentDescription = app.appName,
           modifier = Modifier
             .size(44.dp)

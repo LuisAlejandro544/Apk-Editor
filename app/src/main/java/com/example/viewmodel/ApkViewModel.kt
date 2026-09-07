@@ -10,11 +10,15 @@ import com.example.model.ExtractedFileItem
 import com.example.model.ExtractionProgress
 import com.example.model.StorageInfo
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import com.example.data.DexClassItem
+import com.example.util.AppDispatchers
 import java.io.File
 
 data class FileDetailState(
@@ -29,8 +33,18 @@ data class FileDetailState(
   val errorMessage: String? = null,
   val isSaving: Boolean = false,
   val isEditable: Boolean = false,
-  val isAxmlDecoded: Boolean = false
+  val isAxmlDecoded: Boolean = false,
+  // Campos especializados para DEX Bytecode & Decompiler
+  val isDex: Boolean = false,
+  val dexClasses: List<DexClassItem> = emptyList(),
+  val selectedDexClass: DexClassItem? = null,
+  val dexViewMode: DexViewMode = DexViewMode.SMALI,
+  val isDexDecompiling: Boolean = false
 )
+
+enum class DexViewMode {
+  SMALI, JAVA
+}
 
 class ApkViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -137,7 +151,9 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
     viewModelScope.launch {
       _fileDetail.value = FileDetailState(isLoading = true, relativePath = relativePath)
 
-      val project = repository.getProjectById(projectId)
+      val project = withContext(AppDispatchers.FastIODispatcher) {
+        repository.getProjectById(projectId)
+      }
       if (project == null) {
         _fileDetail.value = FileDetailState(isLoading = false, errorMessage = "Proyecto no encontrado")
         return@launch
@@ -150,26 +166,119 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
       }
 
       val size = targetFile.length()
-      val sha256 = repository.calculateSha256(targetFile.absolutePath)
-      val textPreview = repository.readFileContent(targetFile.absolutePath)
-      val hexDump = repository.readHexDump(targetFile.absolutePath)
+      val isDexFile = targetFile.name.endsWith(".dex", ignoreCase = true)
 
-      val isBinaryPlaceholder = textPreview.startsWith("Este archivo contiene datos binarios") || textPreview == "[Archivo vacío]"
-      val isXml = targetFile.name.endsWith(".xml", ignoreCase = true)
-      val isAxml = isXml && (textPreview.contains("<manifest") || textPreview.contains("<?xml") || textPreview.contains("<"))
-      val isEditable = !isBinaryPlaceholder && textPreview.isNotBlank() && !targetFile.name.endsWith(".dex") && !targetFile.name.endsWith(".so")
+      // Ejecutar operaciones en paralelo en hilos secundarios dinámicos para eliminar el lag al abrir archivos
+      val sha256Deferred = async(AppDispatchers.ComputeDispatcher) {
+        repository.calculateSha256(targetFile.absolutePath)
+      }
+      val hexDumpDeferred = async(AppDispatchers.FastIODispatcher) {
+        repository.readHexDump(targetFile.absolutePath)
+      }
 
-      _fileDetail.value = FileDetailState(
-        isLoading = false,
-        fileName = targetFile.name,
-        relativePath = relativePath,
-        absolutePath = targetFile.absolutePath,
-        sizeBytes = size,
-        sha256 = sha256,
-        textContent = textPreview,
-        hexDump = hexDump,
-        isEditable = isEditable,
-        isAxmlDecoded = isAxml
+      if (isDexFile) {
+        // En archivos DEX: listar clases y desensamblar en hilo de cómputo de alta velocidad
+        val dexContentDeferred = async(AppDispatchers.ComputeDispatcher) {
+          val classes = repository.getDexClasses(targetFile.absolutePath)
+          val initialClass = classes.firstOrNull()
+          val initialText = if (initialClass != null) {
+            repository.disassembleDexToSmali(targetFile.absolutePath, initialClass.typeDescriptor)
+          } else {
+            repository.disassembleDexToSmali(targetFile.absolutePath, null)
+          }
+          Triple(classes, initialClass, initialText)
+        }
+
+        val sha256 = sha256Deferred.await()
+        val hexDump = hexDumpDeferred.await()
+        val (classes, initialClass, initialText) = dexContentDeferred.await()
+
+        _fileDetail.value = FileDetailState(
+          isLoading = false,
+          fileName = targetFile.name,
+          relativePath = relativePath,
+          absolutePath = targetFile.absolutePath,
+          sizeBytes = size,
+          sha256 = sha256,
+          textContent = initialText,
+          hexDump = hexDump,
+          isEditable = true,
+          isAxmlDecoded = false,
+          isDex = true,
+          dexClasses = classes,
+          selectedDexClass = initialClass,
+          dexViewMode = DexViewMode.SMALI
+        )
+      } else {
+        val textPreviewDeferred = async(AppDispatchers.FastIODispatcher) {
+          repository.readFileContent(targetFile.absolutePath)
+        }
+
+        val sha256 = sha256Deferred.await()
+        val hexDump = hexDumpDeferred.await()
+        val textPreview = textPreviewDeferred.await()
+
+        val isBinaryPlaceholder = textPreview.startsWith("Este archivo contiene datos binarios") || textPreview == "[Archivo vacío]"
+        val isXml = targetFile.name.endsWith(".xml", ignoreCase = true)
+        val isAxml = isXml && (textPreview.contains("<manifest") || textPreview.contains("<?xml") || textPreview.contains("<"))
+        val isEditable = !isBinaryPlaceholder && textPreview.isNotBlank() && !targetFile.name.endsWith(".so")
+
+        _fileDetail.value = FileDetailState(
+          isLoading = false,
+          fileName = targetFile.name,
+          relativePath = relativePath,
+          absolutePath = targetFile.absolutePath,
+          sizeBytes = size,
+          sha256 = sha256,
+          textContent = textPreview,
+          hexDump = hexDump,
+          isEditable = isEditable,
+          isAxmlDecoded = isAxml,
+          isDex = false
+        )
+      }
+    }
+  }
+
+  fun switchDexClass(clazz: DexClassItem) {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (!current.isDex) return@launch
+
+      _fileDetail.value = current.copy(isDexDecompiling = true, selectedDexClass = clazz)
+      val content = withContext(AppDispatchers.ComputeDispatcher) {
+        when (current.dexViewMode) {
+          DexViewMode.SMALI -> repository.disassembleDexToSmali(current.absolutePath, clazz.typeDescriptor)
+          DexViewMode.JAVA -> repository.decompileDexToJava(current.absolutePath, clazz.typeDescriptor)
+        }
+      }
+      _fileDetail.value = _fileDetail.value.copy(
+        isDexDecompiling = false,
+        textContent = content
+      )
+    }
+  }
+
+  fun switchDexViewMode(mode: DexViewMode) {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (!current.isDex || current.dexViewMode == mode) return@launch
+
+      _fileDetail.value = current.copy(isDexDecompiling = true, dexViewMode = mode)
+      val descriptor = current.selectedDexClass?.typeDescriptor
+      val content = withContext(AppDispatchers.ComputeDispatcher) {
+        when (mode) {
+          DexViewMode.SMALI -> repository.disassembleDexToSmali(current.absolutePath, descriptor)
+          DexViewMode.JAVA -> if (descriptor != null) {
+            repository.decompileDexToJava(current.absolutePath, descriptor)
+          } else {
+            "// Selecciona una clase para ver el código Java descompilado"
+          }
+        }
+      }
+      _fileDetail.value = _fileDetail.value.copy(
+        isDexDecompiling = false,
+        textContent = content
       )
     }
   }

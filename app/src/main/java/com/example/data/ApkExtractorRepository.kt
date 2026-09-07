@@ -11,7 +11,11 @@ import com.example.model.StorageInfo
 import com.example.model.formatBytes
 import com.jaredrummler.apkparser.parser.BinaryXmlParser
 import com.jaredrummler.apkparser.parser.XmlTranslator
+import com.example.util.AppDispatchers
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -329,6 +333,28 @@ class ApkExtractorRepository(private val context: Context) {
     )
   }
 
+  suspend fun getDexClasses(filePath: String): List<DexClassItem> = withContext(Dispatchers.IO) {
+    val file = File(filePath)
+    if (!file.exists() || !file.name.endsWith(".dex", ignoreCase = true)) return@withContext emptyList()
+    DexDisassembler.listClasses(file)
+  }
+
+  suspend fun disassembleDexToSmali(filePath: String, classDescriptor: String? = null): String = withContext(Dispatchers.IO) {
+    val file = File(filePath)
+    if (!file.exists()) return@withContext "# Archivo DEX no encontrado"
+    if (classDescriptor.isNullOrBlank()) {
+      DexDisassembler.disassembleSummary(file)
+    } else {
+      DexDisassembler.disassembleToSmali(file, classDescriptor)
+    }
+  }
+
+  suspend fun decompileDexToJava(filePath: String, classDescriptor: String): String = withContext(Dispatchers.IO) {
+    val file = File(filePath)
+    if (!file.exists()) return@withContext "// Archivo DEX no encontrado"
+    DexDisassembler.decompileToJava(file, classDescriptor)
+  }
+
   suspend fun readFileContent(filePath: String, maxBytes: Int = 256 * 1024): String = withContext(Dispatchers.IO) {
     val file = File(filePath)
     if (!file.exists() || file.isDirectory) return@withContext "El archivo no existe o es una carpeta."
@@ -489,8 +515,10 @@ class ApkExtractorRepository(private val context: Context) {
 
   /**
    * Retrieves all installed applications on the device that have valid APK files.
+   * Ejecutado sobre ScannerDispatcher (hilo secundario de máxima prioridad y potencia de núcleos).
+   * Procesa la resolución de nombres, rutas e inspección de metadatos en lotes concurrentes (awaitAll).
    */
-  suspend fun getInstalledApps(): List<com.example.model.InstalledAppItem> = withContext(Dispatchers.IO) {
+  suspend fun getInstalledApps(): List<com.example.model.InstalledAppItem> = withContext(AppDispatchers.ScannerDispatcher) {
     val pm = context.packageManager
     val packages = try {
       pm.getInstalledPackages(0)
@@ -498,54 +526,58 @@ class ApkExtractorRepository(private val context: Context) {
       emptyList()
     }
 
-    val list = mutableListOf<com.example.model.InstalledAppItem>()
-    val currentPkg = context.packageName
+    if (packages.isEmpty()) return@withContext emptyList()
 
-    for (pkg in packages) {
-      val appInfo = pkg.applicationInfo ?: continue
-      val sourceDir = appInfo.sourceDir ?: continue
-      val apkFile = File(sourceDir)
-      if (!apkFile.exists() || !apkFile.canRead()) continue
+    // Procesar los paquetes en paralelo aprovechando todos los núcleos del CPU
+    val items = coroutineScope {
+      packages.map { pkg ->
+        async(AppDispatchers.ScannerDispatcher) {
+          val appInfo = pkg.applicationInfo ?: return@async null
+          val sourceDir = appInfo.sourceDir ?: return@async null
+          val apkFile = File(sourceDir)
+          if (!apkFile.exists() || !apkFile.canRead()) return@async null
 
-      val appName = try {
-        pm.getApplicationLabel(appInfo).toString()
-      } catch (e: Exception) {
-        pkg.packageName
-      }
+          val appName = try {
+            pm.getApplicationLabel(appInfo).toString()
+          } catch (_: Exception) {
+            pkg.packageName
+          }
 
-      val icon = try {
-        pm.getApplicationIcon(appInfo)
-      } catch (e: Exception) {
-        null
-      }
+          val isSystem = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+          val size = apkFile.length()
+          val splits = appInfo.splitSourceDirs?.toList() ?: emptyList()
 
-      val isSystem = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
-      val size = apkFile.length()
+          // Carga segura y rápida del icono sin bloquear el hilo principal
+          val icon = try {
+            pm.getApplicationIcon(appInfo)
+          } catch (_: Exception) {
+            null
+          }
 
-      val splits = appInfo.splitSourceDirs?.toList() ?: emptyList()
-
-      list.add(
-        com.example.model.InstalledAppItem(
-          packageName = pkg.packageName,
-          appName = appName,
-          versionName = pkg.versionName ?: "1.0",
-          versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+          val vCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             pkg.longVersionCode
           } else {
             @Suppress("DEPRECATION")
             pkg.versionCode.toLong()
-          },
-          apkPath = sourceDir,
-          apkSizeBytes = size,
-          isSystemApp = isSystem,
-          splitApkPaths = splits,
-          iconDrawable = icon
-        )
-      )
+          }
+
+          com.example.model.InstalledAppItem(
+            packageName = pkg.packageName,
+            appName = appName,
+            versionName = pkg.versionName ?: "1.0",
+            versionCode = vCode,
+            apkPath = sourceDir,
+            apkSizeBytes = size,
+            isSystemApp = isSystem,
+            splitApkPaths = splits,
+            iconDrawable = icon
+          )
+        }
+      }.awaitAll().filterNotNull()
     }
 
-    // Sort: User installed apps first, then alphabetically by appName
-    list.sortedWith(
+    // Ordenar: Apps instaladas por el usuario primero, luego alfabéticamente
+    items.sortedWith(
       compareBy<com.example.model.InstalledAppItem> { it.isSystemApp }
         .thenBy { it.appName.lowercase() }
     )

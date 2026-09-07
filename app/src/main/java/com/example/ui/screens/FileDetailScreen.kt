@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,13 +29,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DataObject
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.IntegrationInstructions
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
@@ -43,16 +44,21 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -74,7 +80,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
+import com.example.data.DexClassItem
 import com.example.model.formatBytes
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CodeBackground
@@ -89,8 +95,10 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.viewmodel.ApkViewModel
+import com.example.viewmodel.DexViewMode
 import java.io.File
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileDetailScreen(
   projectId: String,
@@ -106,13 +114,16 @@ fun FileDetailScreen(
   var editedText by remember(state.textContent) { mutableStateOf(state.textContent) }
   val hasUnsavedChanges = remember(editedText, state.textContent) { editedText != state.textContent }
 
+  var showClassPickerSheet by remember { mutableStateOf(false) }
+  var classSearchFilter by remember { mutableStateOf("") }
+
   LaunchedEffect(projectId, relativePath) {
     viewModel.loadFileDetail(projectId, relativePath)
   }
 
-  // Si es un archivo decodificado por apk-parser o editable, abrir directamente en la pestaña del editor
-  LaunchedEffect(state.isEditable, state.isAxmlDecoded) {
-    if (state.isAxmlDecoded || state.isEditable || relativePath.endsWith(".xml", ignoreCase = true)) {
+  // Si es un archivo decodificado por apk-parser, DEX o editable, abrir directamente en la pestaña del editor
+  LaunchedEffect(state.isEditable, state.isAxmlDecoded, state.isDex) {
+    if (state.isAxmlDecoded || state.isEditable || state.isDex || relativePath.endsWith(".xml", ignoreCase = true)) {
       selectedTab = 1
     }
   }
@@ -156,7 +167,11 @@ fun FileDetailScreen(
               overflow = TextOverflow.Ellipsis
             )
             Text(
-              text = state.relativePath,
+              text = if (state.isDex && state.selectedDexClass != null) {
+                "${state.relativePath}  •  ${state.selectedDexClass?.simpleClassName}"
+              } else {
+                state.relativePath
+              },
               style = MaterialTheme.typography.labelSmall,
               fontFamily = FontFamily.Monospace,
               color = TextMuted,
@@ -254,7 +269,14 @@ fun FileDetailScreen(
               Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(if (state.isAxmlDecoded || state.isEditable) "Editor / Código" else "Texto", fontSize = 13.sp)
+                Text(
+                  when {
+                    state.isDex -> "DEX / Código"
+                    state.isAxmlDecoded || state.isEditable -> "Editor / Código"
+                    else -> "Texto"
+                  },
+                  fontSize = 13.sp
+                )
               }
             }
           )
@@ -335,9 +357,9 @@ fun FileDetailScreen(
           }
 
           1 -> {
-            // Text & Code Editor con números de línea y apk-parser
+            // Editor / Visor de Código (Soporta DEX con Smali y Java)
             val isBinaryNotice = state.textContent.startsWith("Este archivo contiene datos binarios")
-            if (isBinaryNotice) {
+            if (isBinaryNotice && !state.isDex) {
               Card(
                 colors = CardDefaults.cardColors(containerColor = CodeBackground),
                 border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(SlateCardBorder)),
@@ -388,118 +410,210 @@ fun FileDetailScreen(
                 modifier = Modifier.fillMaxSize()
               ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                  // Barra de herramientas del editor
-                  Row(
+                  // Barra de herramientas especializada
+                  Column(
                     modifier = Modifier
                       .fillMaxWidth()
                       .background(SlateNavy)
-                      .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                      .padding(horizontal = 12.dp, vertical = 8.dp)
                   ) {
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                      if (state.isAxmlDecoded) {
-                        Box(
+                    // Fila 1: Selectores de Formato DEX (Smali / Java) y Selector de Clase
+                    if (state.isDex) {
+                      Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                      ) {
+                        // Selector de modo: Crudo (Smali) vs Java
+                        Row(
                           modifier = Modifier
-                            .background(CyanPrimary.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SlateCard)
+                            .padding(2.dp),
+                          verticalAlignment = Alignment.CenterVertically
                         ) {
-                          Text(
-                            text = "AXML (apk-parser)",
-                            color = CyanGlow,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                          )
-                        }
-                      }
-                      val lineCount = remember(editedText) { editedText.lines().size }
-                      Text(
-                        text = "$lineCount líneas",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = TextMuted,
-                        fontSize = 11.sp
-                      )
-                    }
-
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                      if (hasUnsavedChanges) {
-                        IconButton(
-                          onClick = { editedText = state.textContent },
-                          modifier = Modifier.size(32.dp)
-                        ) {
-                          Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Deshacer cambios",
-                            tint = AmberAccent,
-                            modifier = Modifier.size(18.dp)
-                          )
-                        }
-
-                        Button(
-                          onClick = {
-                            viewModel.saveFileContent(projectId, relativePath, editedText) { success ->
-                              Toast.makeText(
-                                context,
-                                if (success) "Archivo guardado exitosamente" else "Error al guardar el archivo",
-                                Toast.LENGTH_SHORT
-                              ).show()
-                            }
-                          },
-                          enabled = !state.isSaving,
-                          colors = ButtonDefaults.buttonColors(containerColor = MintSecondary),
-                          shape = RoundedCornerShape(6.dp),
-                          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                          modifier = Modifier.height(30.dp)
-                        ) {
-                          if (state.isSaving) {
-                            CircularProgressIndicator(color = SlateDark, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                          } else {
-                            Icon(
-                              Icons.Default.Save,
-                              contentDescription = null,
-                              tint = SlateDark,
-                              modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
+                          Box(
+                            modifier = Modifier
+                              .clip(RoundedCornerShape(6.dp))
+                              .background(if (state.dexViewMode == DexViewMode.SMALI) CyanPrimary else SlateCard)
+                              .clickable { viewModel.switchDexViewMode(DexViewMode.SMALI) }
+                              .padding(horizontal = 10.dp, vertical = 4.dp)
+                          ) {
                             Text(
-                              "Guardar",
-                              color = SlateDark,
+                              text = "⚙️ Crudo (Smali)",
+                              color = if (state.dexViewMode == DexViewMode.SMALI) SlateDark else TextSecondary,
+                              fontSize = 11.sp,
+                              fontWeight = FontWeight.Bold
+                            )
+                          }
+
+                          Box(
+                            modifier = Modifier
+                              .clip(RoundedCornerShape(6.dp))
+                              .background(if (state.dexViewMode == DexViewMode.JAVA) CyanPrimary else SlateCard)
+                              .clickable { viewModel.switchDexViewMode(DexViewMode.JAVA) }
+                              .padding(horizontal = 10.dp, vertical = 4.dp)
+                          ) {
+                            Text(
+                              text = "☕ Java",
+                              color = if (state.dexViewMode == DexViewMode.JAVA) SlateDark else TextSecondary,
                               fontSize = 11.sp,
                               fontWeight = FontWeight.Bold
                             )
                           }
                         }
+
+                        // Botón para elegir clase dentro del DEX
+                        Button(
+                          onClick = { showClassPickerSheet = true },
+                          colors = ButtonDefaults.buttonColors(containerColor = SlateCard),
+                          shape = RoundedCornerShape(6.dp),
+                          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                          modifier = Modifier.height(30.dp)
+                        ) {
+                          Icon(
+                            imageVector = Icons.Default.IntegrationInstructions,
+                            contentDescription = null,
+                            tint = CyanPrimary,
+                            modifier = Modifier.size(14.dp)
+                          )
+                          Spacer(modifier = Modifier.width(4.dp))
+                          Text(
+                            text = "${state.dexClasses.size} Clases",
+                            color = CyanPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                          )
+                        }
                       }
 
-                      Button(
-                        onClick = { isEditMode = !isEditMode },
-                        colors = ButtonDefaults.buttonColors(
-                          containerColor = if (isEditMode) CyanPrimary else SlateCard
-                        ),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(30.dp)
+                      Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Fila 2: Indicadores y Botones de Acción (Guardar / Modo Edición)
+                    Row(
+                      modifier = Modifier.fillMaxWidth(),
+                      horizontalArrangement = Arrangement.SpaceBetween,
+                      verticalAlignment = Alignment.CenterVertically
+                    ) {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                       ) {
-                        Icon(
-                          if (isEditMode) Icons.Default.Visibility else Icons.Default.Edit,
-                          contentDescription = null,
-                          tint = if (isEditMode) SlateDark else CyanPrimary,
-                          modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        if (state.isAxmlDecoded) {
+                          Box(
+                            modifier = Modifier
+                              .background(CyanPrimary.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                              .padding(horizontal = 6.dp, vertical = 2.dp)
+                          ) {
+                            Text(
+                              text = "AXML (apk-parser)",
+                              color = CyanGlow,
+                              fontSize = 11.sp,
+                              fontWeight = FontWeight.Bold
+                            )
+                          }
+                        } else if (state.isDex) {
+                          Box(
+                            modifier = Modifier
+                              .background(MintSecondary.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                              .padding(horizontal = 6.dp, vertical = 2.dp)
+                          ) {
+                            Text(
+                              text = if (state.dexViewMode == DexViewMode.SMALI) "Smali Bytecode" else "Java Decompiled",
+                              color = MintSecondary,
+                              fontSize = 11.sp,
+                              fontWeight = FontWeight.Bold
+                            )
+                          }
+                        }
+
+                        val lineCount = remember(editedText) { editedText.lines().size }
                         Text(
-                          if (isEditMode) "Lectura" else "Editar",
-                          color = if (isEditMode) SlateDark else CyanPrimary,
-                          fontSize = 11.sp,
-                          fontWeight = FontWeight.Bold
+                          text = "$lineCount líneas",
+                          style = MaterialTheme.typography.labelSmall,
+                          fontFamily = FontFamily.Monospace,
+                          color = TextMuted,
+                          fontSize = 11.sp
                         )
+                      }
+
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                      ) {
+                        if (hasUnsavedChanges) {
+                          IconButton(
+                            onClick = { editedText = state.textContent },
+                            modifier = Modifier.size(32.dp)
+                          ) {
+                            Icon(
+                              Icons.Default.Refresh,
+                              contentDescription = "Deshacer cambios",
+                              tint = AmberAccent,
+                              modifier = Modifier.size(18.dp)
+                            )
+                          }
+
+                          Button(
+                            onClick = {
+                              viewModel.saveFileContent(projectId, relativePath, editedText) { success ->
+                                Toast.makeText(
+                                  context,
+                                  if (success) "Archivo guardado exitosamente" else "Error al guardar el archivo",
+                                  Toast.LENGTH_SHORT
+                                ).show()
+                              }
+                            },
+                            enabled = !state.isSaving,
+                            colors = ButtonDefaults.buttonColors(containerColor = MintSecondary),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(30.dp)
+                          ) {
+                            if (state.isSaving) {
+                              CircularProgressIndicator(color = SlateDark, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            } else {
+                              Icon(
+                                Icons.Default.Save,
+                                contentDescription = null,
+                                tint = SlateDark,
+                                modifier = Modifier.size(14.dp)
+                              )
+                              Spacer(modifier = Modifier.width(4.dp))
+                              Text(
+                                "Guardar",
+                                color = SlateDark,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                              )
+                            }
+                          }
+                        }
+
+                        Button(
+                          onClick = { isEditMode = !isEditMode },
+                          colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isEditMode) CyanPrimary else SlateCard
+                          ),
+                          shape = RoundedCornerShape(6.dp),
+                          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                          modifier = Modifier.height(30.dp)
+                        ) {
+                          Icon(
+                            if (isEditMode) Icons.Default.Visibility else Icons.Default.Edit,
+                            contentDescription = null,
+                            tint = if (isEditMode) SlateDark else CyanPrimary,
+                            modifier = Modifier.size(14.dp)
+                          )
+                          Spacer(modifier = Modifier.width(4.dp))
+                          Text(
+                            if (isEditMode) "Lectura" else "Editar",
+                            color = if (isEditMode) SlateDark else CyanPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                          )
+                        }
                       }
                     }
                   }
@@ -516,6 +630,21 @@ fun FileDetailScreen(
                         color = AmberAccent,
                         fontSize = 11.sp
                       )
+                    }
+                  }
+
+                  if (state.isDexDecompiling) {
+                    Box(
+                      modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                      contentAlignment = Alignment.Center
+                    ) {
+                      Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(color = CyanPrimary, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Procesando bytecode DEX...", color = TextSecondary, fontSize = 12.sp)
+                      }
                     }
                   }
 
@@ -582,6 +711,7 @@ fun FileDetailScreen(
                         modifier = Modifier
                           .fillMaxWidth()
                           .padding(end = 24.dp)
+                          .testTag("code_text_field")
                       )
                     }
                   }
@@ -610,6 +740,13 @@ fun FileDetailScreen(
                 onCopy = { copyToClipboard(context, state.relativePath, "Ruta copiada") }
               )
 
+              if (state.isDex) {
+                MetadataCard(
+                  title = "Estructura DEX Detectada",
+                  value = "${state.dexClasses.size} clases compiladas en Dalvik Executable"
+                )
+              }
+
               MetadataCard(
                 title = "Tamaño Descomprimido",
                 value = "${state.sizeBytes} bytes (${formatBytes(state.sizeBytes)})"
@@ -634,6 +771,131 @@ fun FileDetailScreen(
       }
     }
   }
+
+  // Modal Bottom Sheet para explorar y seleccionar clases dentro del DEX
+  if (showClassPickerSheet) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(
+      onDismissRequest = { showClassPickerSheet = false },
+      sheetState = sheetState,
+      containerColor = SlateNavy
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp, vertical = 12.dp)
+      ) {
+        Text(
+          text = "Clases en ${state.fileName}",
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          color = TextPrimary
+        )
+        Text(
+          text = "Selecciona una clase para desensamblar a Smali o ver en Java",
+          style = MaterialTheme.typography.bodySmall,
+          color = TextMuted
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+          value = classSearchFilter,
+          onValueChange = { classSearchFilter = it },
+          placeholder = { Text("Filtrar clases...", color = TextMuted) },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = CyanPrimary,
+            unfocusedBorderColor = SlateCardBorder,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary
+          )
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val filteredClasses = remember(state.dexClasses, classSearchFilter) {
+          if (classSearchFilter.isBlank()) {
+            state.dexClasses
+          } else {
+            state.dexClasses.filter {
+              it.prettyClassName.contains(classSearchFilter.trim(), ignoreCase = true)
+            }
+          }
+        }
+
+        LazyColumn(
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(350.dp)
+        ) {
+          items(filteredClasses, key = { it.typeDescriptor }) { item ->
+            val isSelected = state.selectedDexClass?.typeDescriptor == item.typeDescriptor
+            Card(
+              colors = CardDefaults.cardColors(
+                containerColor = if (isSelected) CyanPrimary.copy(alpha = 0.15f) else SlateCard
+              ),
+              border = CardDefaults.outlinedCardBorder().copy(
+                brush = SolidColor(if (isSelected) CyanPrimary else SlateCardBorder)
+              ),
+              shape = RoundedCornerShape(8.dp),
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable {
+                  viewModel.switchDexClass(item)
+                  showClassPickerSheet = false
+                }
+            ) {
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Box(
+                  modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isSelected) CyanPrimary else SlateNavy),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.IntegrationInstructions,
+                    contentDescription = null,
+                    tint = if (isSelected) SlateDark else CyanPrimary,
+                    modifier = Modifier.size(18.dp)
+                  )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(
+                    text = item.simpleClassName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                  )
+                  if (item.packageName.isNotEmpty()) {
+                    Text(
+                      text = item.packageName,
+                      style = MaterialTheme.typography.labelSmall,
+                      color = TextMuted,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis
+                    )
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 @Composable
@@ -645,7 +907,7 @@ fun MetadataCard(
 ) {
   Card(
     colors = CardDefaults.cardColors(containerColor = SlateNavy),
-    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(SlateCardBorder)),
+    border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(SlateCardBorder)),
     shape = RoundedCornerShape(12.dp),
     modifier = Modifier.fillMaxWidth()
   ) {

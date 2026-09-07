@@ -5,7 +5,7 @@ Mapa detallado de la arquitectura de directorios, capas de responsabilidad y com
 ```
 apk-extractor/
 ├── app/
-│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias
+│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias (smali, apk-parser, etc.)
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml      # Permisos del sistema (SAF, QUERY_ALL_PACKAGES) y Activities
@@ -23,7 +23,9 @@ apk-extractor/
 │       │   ├── java/com/example/
 │       │   │   ├── MainActivity.kt      # Actividad principal con configuración de rutas Compose
 │       │   │   ├── data/
-│       │   │   │   └── ApkExtractorRepository.kt  # Gestión I/O de caché, extracción ZIP, lectura PackageManager, decodificación AXML con apk-parser y guardado de archivos
+│       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML y métodos DEX
+│       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali con baksmali 2.5.2 e indexación de clases DEX
+│       │   │   │   └── DexToJavaTranslator.kt     # Traductor y reconstructor de bytecode Dalvik a código Java
 │       │   │   ├── model/
 │       │   │   │   ├── ApkFileItem.kt        # Entidad de archivo extraído (tamaño, tipo, extensiones)
 │       │   │   │   ├── ExtractedProject.kt   # Metadata de sesiones y proyectos guardados en caché
@@ -39,23 +41,24 @@ apk-extractor/
 │       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas
 │       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión
 │       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK
-│       │   │   │   │   ├── FileDetailScreen.kt    # Visor hexadecimal, hash SHA-256 y editor de código en líneas para AXML y texto
+│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, desensamblador Smali/Java para DEX y editor con persistencia
 │       │   │   │   │   └── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal
 │       │   │   │   └── theme/
 │       │   │   │       ├── Color.kt               # Paleta ciberpunk/terminal (Slate, Cyan, Mint, Amber)
 │       │   │   │       ├── Theme.kt               # Tema Material 3 oscuro
 │       │   │   │       └── Type.kt                # Tipografía con soporte monoespaciado
 │       │   │   └── viewmodel/
-│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI y lógica de negocio
+│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX, AXML y guardado en disco
 │       │   └── res/                               # Recursos gráficos, iconos adaptativos y strings
-│       └── test/java/com/example/                 # Pruebas unitarias locales (Robolectric)
+│       └── test/java/com/example/                 # Pruebas unitarias locales (DexViewerUnitTest, ExampleUnitTest)
 ├── .gitignore                           # Exclusiones de Git para Android, C/C++, CMake, Rust y Lua
 ├── gradle/                              # Wrapper y catálogo de dependencias
 ├── build.gradle.kts                     # Configuración del proyecto raíz
 ├── settings.gradle.kts                  # Configuración de repositorios y módulos
-├── README.md                            # Documentación principal
+├── README.md                            # Documentación principal actualizada
 ├── ROADMAP.md                           # Fases de desarrollo planificadas
 ├── STRUCTURE.md                         # Mapa arquitectónico del sistema
 ├── AI_CONTEXT.md                        # Contexto técnico para modelos de lenguaje
+├── commit_message.txt                   # Registro en español del último conjunto de cambios
 └── AGENTS.md                            # Reglas operativas y directrices de desarrollo
 ```

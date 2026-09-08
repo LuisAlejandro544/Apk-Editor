@@ -16,6 +16,7 @@ enum class FileCategory(val label: String, val badgeColorHex: Long) {
   CODE_OR_SCRIPT("Código / Config", 0xFF3A86FF),
   IMAGE("Imagen", 0xFF2EC4B6),
   AUDIO("Audio", 0xFFFF006E),
+  BINARY_DATA("Datos / Binario (.dat/.bin)", 0xFFF77F00),
   OTHER("Archivo", 0xFF94A3B8)
 }
 

@@ -20,6 +20,9 @@ import kotlinx.coroutines.launch
 import com.example.data.DexClassItem
 import com.example.data.ElfSymbolItem
 import com.example.data.SoViewMode
+import com.example.data.ArscParseResult
+import com.example.data.ArscResourceItem
+import com.example.data.BinaryDataResult
 import com.example.util.AppDispatchers
 import java.io.File
 
@@ -51,11 +54,33 @@ data class FileDetailState(
   val isSoAnalyzing: Boolean = false,
   // Campos especializados para Multimedia (Coil & Media3)
   val isImage: Boolean = false,
-  val isAudio: Boolean = false
+  val isAudio: Boolean = false,
+  // Campos especializados para resources.arsc (ARSCLib)
+  val isArsc: Boolean = false,
+  val arscResult: ArscParseResult? = null,
+  val arscViewMode: ArscViewMode = ArscViewMode.ENTRIES,
+  val arscFilterType: String? = null,
+  val arscSearchQuery: String = "",
+  // Campos especializados para archivos binarios de datos (.dat / .bin)
+  val isBinaryData: Boolean = false,
+  val binaryDataResult: BinaryDataResult? = null,
+  val binaryEditMode: BinaryEditMode = BinaryEditMode.HEX,
+  val binaryHexEditable: String = "",
+  val binaryTextEditable: String = ""
 )
+
+enum class BinaryEditMode(val label: String, val iconBadge: String) {
+  HEX("Editor Hex", "🔢"),
+  TEXT("Texto / UTF-8", "🔤"),
+  INSPECTOR("Inspector & Strings", "🔍")
+}
 
 enum class DexViewMode {
   SMALI, JAVA
+}
+
+enum class ArscViewMode {
+  ENTRIES, SUMMARY
 }
 
 
@@ -182,12 +207,14 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
       val lowerName = targetFile.name.lowercase()
       val isDexFile = lowerName.endsWith(".dex")
       val isSoFile = lowerName.endsWith(".so")
+      val isArscFile = lowerName.endsWith(".arsc") || targetFile.name.equals("resources.arsc", ignoreCase = true)
       val isImageFile = lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") ||
         lowerName.endsWith(".webp") || lowerName.endsWith(".gif") || lowerName.endsWith(".svg") ||
         lowerName.endsWith(".ico") || lowerName.endsWith(".bmp")
       val isAudioFile = lowerName.endsWith(".mp3") || lowerName.endsWith(".ogg") || lowerName.endsWith(".wav") ||
         lowerName.endsWith(".aac") || lowerName.endsWith(".m4a") || lowerName.endsWith(".flac") ||
         lowerName.endsWith(".opus") || lowerName.endsWith(".mid") || lowerName.endsWith(".midi")
+      val isDatOrBinFile = lowerName.endsWith(".dat") || lowerName.endsWith(".bin")
 
       // Ejecutar operaciones en paralelo en hilos secundarios dinámicos para eliminar el lag al abrir archivos
       val sha256Deferred = async(AppDispatchers.ComputeDispatcher) {
@@ -261,6 +288,67 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
           soSymbols = symbols,
           selectedSoSymbol = symbols.firstOrNull(),
           soDependencies = deps
+        )
+      } else if (isArscFile) {
+        // En archivos resources.arsc: parsear tabla completa de recursos usando ARSCLib en ComputeDispatcher
+        val arscDeferred = async(AppDispatchers.ComputeDispatcher) {
+          repository.parseArsc(targetFile.absolutePath)
+        }
+
+        val sha256 = sha256Deferred.await()
+        val hexDump = hexDumpDeferred.await()
+        val arscResult = arscDeferred.await()
+
+        _fileDetail.value = FileDetailState(
+          isLoading = false,
+          fileName = targetFile.name,
+          relativePath = relativePath,
+          absolutePath = targetFile.absolutePath,
+          sizeBytes = size,
+          sha256 = sha256,
+          textContent = arscResult.summaryReport,
+          hexDump = hexDump,
+          isEditable = false,
+          isAxmlDecoded = false,
+          isDex = false,
+          isSo = false,
+          isImage = false,
+          isAudio = false,
+          isArsc = true,
+          arscResult = arscResult,
+          arscViewMode = ArscViewMode.ENTRIES
+        )
+      } else if (isDatOrBinFile) {
+        // En archivos de datos binarios (.dat / .bin): analizar estructura, extraer hex editable y cadenas legibles
+        val binaryDeferred = async(AppDispatchers.ComputeDispatcher) {
+          repository.parseBinaryData(targetFile.absolutePath)
+        }
+
+        val sha256 = sha256Deferred.await()
+        val hexDump = hexDumpDeferred.await()
+        val binaryResult = binaryDeferred.await()
+
+        _fileDetail.value = FileDetailState(
+          isLoading = false,
+          fileName = targetFile.name,
+          relativePath = relativePath,
+          absolutePath = targetFile.absolutePath,
+          sizeBytes = size,
+          sha256 = sha256,
+          textContent = binaryResult.hexFormatted,
+          hexDump = hexDump,
+          isEditable = true,
+          isAxmlDecoded = false,
+          isDex = false,
+          isSo = false,
+          isImage = false,
+          isAudio = false,
+          isArsc = false,
+          isBinaryData = true,
+          binaryDataResult = binaryResult,
+          binaryEditMode = BinaryEditMode.HEX,
+          binaryHexEditable = binaryResult.hexFormatted,
+          binaryTextEditable = binaryResult.textContent
         )
       } else {
 
@@ -397,10 +485,90 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
-  fun saveFileContent(projectId: String, relativePath: String, newContent: String, onComplete: (Boolean) -> Unit = {}) {
+  fun switchArscViewMode(mode: ArscViewMode) {
+    _fileDetail.value = _fileDetail.value.copy(arscViewMode = mode)
+  }
 
+  fun filterArscByType(typeName: String?) {
+    _fileDetail.value = _fileDetail.value.copy(arscFilterType = typeName)
+  }
+
+  fun setArscSearchQuery(query: String) {
+    _fileDetail.value = _fileDetail.value.copy(arscSearchQuery = query)
+  }
+
+  fun switchBinaryEditMode(mode: BinaryEditMode) {
+    val current = _fileDetail.value
+    if (!current.isBinaryData) return
+    val newContent = when (mode) {
+      BinaryEditMode.HEX -> current.binaryHexEditable
+      BinaryEditMode.TEXT -> current.binaryTextEditable
+      BinaryEditMode.INSPECTOR -> current.textContent
+    }
+    _fileDetail.value = current.copy(
+      binaryEditMode = mode,
+      textContent = newContent
+    )
+  }
+
+  fun updateBinaryHexContent(hex: String) {
+    _fileDetail.value = _fileDetail.value.copy(binaryHexEditable = hex)
+  }
+
+  fun updateBinaryTextContent(text: String) {
+    _fileDetail.value = _fileDetail.value.copy(binaryTextEditable = text)
+  }
+
+  fun saveBinaryContent(
+    projectId: String,
+    relativePath: String,
+    content: String,
+    mode: BinaryEditMode,
+    onComplete: (Boolean, String?) -> Unit = { _, _ -> }
+  ) {
     viewModelScope.launch {
       val currentState = _fileDetail.value
+      _fileDetail.value = currentState.copy(isSaving = true)
+
+      val saveResult = when (mode) {
+        BinaryEditMode.HEX -> repository.saveBinaryHex(currentState.absolutePath, content)
+        BinaryEditMode.TEXT -> repository.saveBinaryText(currentState.absolutePath, content)
+        BinaryEditMode.INSPECTOR -> Result.failure(IllegalStateException("El inspector es de solo lectura"))
+      }
+
+      if (saveResult.isSuccess) {
+        val newBinaryResult = repository.parseBinaryData(currentState.absolutePath)
+        val newSha256 = repository.calculateSha256(currentState.absolutePath)
+        val newHex = repository.readHexDump(currentState.absolutePath)
+        _fileDetail.value = currentState.copy(
+          isSaving = false,
+          sizeBytes = newBinaryResult.fileSize,
+          sha256 = newSha256,
+          hexDump = newHex,
+          binaryDataResult = newBinaryResult,
+          binaryHexEditable = if (mode == BinaryEditMode.HEX) content else newBinaryResult.hexFormatted,
+          binaryTextEditable = if (mode == BinaryEditMode.TEXT) content else newBinaryResult.textContent,
+          textContent = if (mode == BinaryEditMode.HEX) content else newBinaryResult.textContent
+        )
+        refreshProjectsAndStorage()
+        onComplete(true, null)
+      } else {
+        _fileDetail.value = currentState.copy(isSaving = false)
+        onComplete(false, saveResult.exceptionOrNull()?.message)
+      }
+    }
+  }
+
+  fun saveFileContent(projectId: String, relativePath: String, newContent: String, onComplete: (Boolean) -> Unit = {}) {
+    val currentState = _fileDetail.value
+    if (currentState.isBinaryData) {
+      saveBinaryContent(projectId, relativePath, newContent, currentState.binaryEditMode) { success, _ ->
+        onComplete(success)
+      }
+      return
+    }
+
+    viewModelScope.launch {
       _fileDetail.value = currentState.copy(isSaving = true)
 
       val success = repository.saveFileContent(currentState.absolutePath, newContent)

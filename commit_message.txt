@@ -1,9 +1,44 @@
-feat: visor multimedia con Coil y reproductor de audio con Media3 ExoPlayer
+feat: integración de ARSCLib para visualización e inspección de resources.arsc
 
-- Añadir soporte para renderizado directo de imágenes con Coil Compose (io.coil-kt:coil-compose, coil-gif y coil-svg)
-- Implementar visor interactivo de imágenes (ImageViewerView) con soporte para PNG, JPG, WebP, GIF animado y SVG, incluyendo zoom multitáctil (pinch-to-zoom), desplazamiento (pan) e inspección de dimensiones
-- Integrar reproductor de audio nativo con AndroidX Media3 (androidx.media3:media3-exoplayer)
-- Implementar interfaz de reproductor de audio táctil (AudioPlayerView) para MP3, OGG, WAV, AAC, M4A, FLAC con controles Play/Pause, barra de progreso (seek slider) y gestión de ciclo de vida seguro
-- Clasificar extensiones multimedia en ApkModel y ApkExtractorRepository asignando la categoría FileCategory.AUDIO
-- Integrar visor y desensamblador de librerías nativas ELF (.so) con Goblin y Capstone
-- Actualizar documentación técnica (README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md)
+- Integrar la biblioteca io.github.reandroid:ARSCLib (v1.4.0) en build.gradle.kts y libs.versions.toml
+- Implementar ArscParser en com.example.data para lectura de TableBlock, enumeración de PackageBlock, extracción de ResourceEntry y análisis del StringPool global
+- Crear el componente visual reactivo ArscViewerContent en Jetpack Compose con selector de modos (Recursos vs Resumen Estructural)
+- Incorporar buscador en tiempo real para filtrar entradas ARSC por ID hexadecimal (0x7F...), nombre, valor o tipo
+- Añadir barra horizontal interactiva de chips de filtrado por categoría de recurso (string, drawable, color, layout, id, dimen, etc.) con conteo dinámico
+- Diseñar tarjetas de recursos ArscResourceCard con badges coloreados, IDs monoespaciados, referencias oficiales (@tipo/nombre) con botón de copiado rápido y visualización de valores y configuraciones
+- Añadir modo resumen con auditoría técnica de paquetes registrados, métricas del StringPool y exportación de reporte
+- Adaptar FileDetailScreen y LaunchedEffect para detectar y abrir automáticamente la pestaña de recursos al seleccionar resources.arsc
+- Actualizar ApkExtractorRepository para clasificar automáticamente cualquier archivo con extensión .arsc en FileCategory.RESOURCES_ARSC
+- Implementar suite de pruebas unitarias ArscViewerUnitTest y actualizar la documentación del proyecto (README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md)
+- Añadir suite de dependencias para análisis, inspección y descompresión de archivos binarios (.dat, .bin, streams y bases de datos):
+  * org.apache.tika:tika-core (2.9.2) para detección de números mágicos y tipos MIME
+  * com.github.luben:zstd-jni (1.5.6-3) para soporte de descompresión Zstandard
+  * org.lz4:lz4-java (1.8.0) para streaming de descompresión LZ4
+  * org.brotli:dec (0.1.2) para decodificación de datos Brotli
+  * org.apache.commons:commons-compress (1.26.2) para compresión/descompresión multi-formato
+  * com.google.protobuf:protobuf-java (3.25.3) para análisis de streams Protocol Buffers
+  * org.msgpack:msgpack-core (0.9.8) para deserialización MessagePack
+  * com.fasterxml.jackson.dataformat:jackson-dataformat-cbor (2.17.1) para formatos CBOR
+  * org.xerial:sqlite-jdbc (3.45.3.0) para inspección de bases de datos embebidas SQLite
+  * Actualizar minSdk a 26 en app/build.gradle.kts para compatibilidad completa con MethodHandle en Android y verificar compilación limpia
+
+---
+
+feat: soporte integral para ver y editar archivos binarios .dat y .bin
+
+- Implementar BinaryDataParser en com.example.data para análisis de archivos .dat y .bin:
+  * Detección automática de formato binario (magic bytes: SQLite, Zstandard, GZIP, ZIP/APK, ELF, DEX, AXML, LZ4, Java Class, Protobuf, CBOR, MessagePack) y tipos MIME mediante Apache Tika
+  * Cálculo matemático de Entropía de Shannon (0.0 a 8.0) para clasificar nivel de compresión o cifrado
+  * Formateo y validación de volcado hexadecimal editable
+  * Decodificación segura de texto (UTF-8 con fallback a ISO-8859-1 para preservar 100% de los bytes)
+  * Extracción de cadenas de texto legibles (strings >= 4 caracteres)
+  * Rutinas de conversión y persistencia segura de hexadecimal y texto plano a bytes físicos en disco
+- Crear el componente táctil reactivo BinaryDataViewerContent en com.example.ui.components:
+  * Selector de 3 modos operativos: Editor Hexadecimal, Editor de Texto / UTF-8 e Inspector de Estructura
+  * Modo Editor Hex: modificación en tiempo real, conteo de bytes, formateo dinámico por bloques de 16 bytes, validación de paridad y botón de copiado
+  * Modo Editor de Texto: edición con numeración de líneas y alternancia lectura/edición
+  * Modo Inspector & Strings: tarjeta de diagnóstico (formato, MIME, entropía, tamaño) y lista interactiva de cadenas extraídas con buscador y copiado al portapapeles
+- Agregar categoría FileCategory.BINARY_DATA en ApkModel y categorizar automáticamente archivos .dat y .bin en ApkExtractorRepository
+- Extender FileDetailState en ApkViewModel con soporte para BinaryEditMode (HEX, TEXT, INSPECTOR), buffer editable y persistencia asíncrona
+- Integrar BinaryDataViewerContent en FileDetailScreen con apertura automática en la pestaña del visor/editor
+- Actualizar documentación del proyecto (README.md, AI_CONTEXT.md, ROADMAP.md, STRUCTURE.md y commit_message.txt) preservando toda la información preexistente

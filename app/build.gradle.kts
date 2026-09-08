@@ -14,7 +14,7 @@ android {
 
   defaultConfig {
     applicationId = "com.aistudio.apkextractor.pkrv"
-    minSdk = 24
+    minSdk = 26
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
@@ -84,9 +84,19 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
+  implementation(libs.arsclib)
   implementation(libs.apk.parser)
   implementation(libs.smali.dexlib2)
   implementation(libs.smali.baksmali)
+  implementation(libs.tika.core)
+  implementation(libs.zstd.jni)
+  implementation(libs.lz4.java)
+  implementation(libs.brotli.dec)
+  implementation(libs.commons.compress)
+  implementation(libs.protobuf.java)
+  implementation(libs.msgpack.core)
+  implementation(libs.jackson.dataformat.cbor)
+  implementation(libs.sqlite.jdbc)
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)

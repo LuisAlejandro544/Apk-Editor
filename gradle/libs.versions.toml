@@ -44,9 +44,29 @@ googleid = "1.1.1"
 apkParser = "1.0.2"
 smali = "2.5.2"
 media3 = "1.5.1"
+arsclib = "1.4.0"
+tikaCore = "2.9.2"
+zstdJni = "1.5.6-3"
+lz4Java = "1.8.0"
+brotliDec = "0.1.2"
+commonsCompress = "1.26.2"
+protobufJava = "3.25.3"
+msgpackCore = "0.9.8"
+jacksonCbor = "2.17.1"
+sqliteJdbc = "3.45.3.0"
 
 
 [libraries]
+tika-core = { group = "org.apache.tika", name = "tika-core", version.ref = "tikaCore" }
+zstd-jni = { group = "com.github.luben", name = "zstd-jni", version.ref = "zstdJni" }
+lz4-java = { group = "org.lz4", name = "lz4-java", version.ref = "lz4Java" }
+brotli-dec = { group = "org.brotli", name = "dec", version.ref = "brotliDec" }
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+protobuf-java = { group = "com.google.protobuf", name = "protobuf-java", version.ref = "protobufJava" }
+msgpack-core = { group = "org.msgpack", name = "msgpack-core", version.ref = "msgpackCore" }
+jackson-dataformat-cbor = { group = "com.fasterxml.jackson.dataformat", name = "jackson-dataformat-cbor", version.ref = "jacksonCbor" }
+sqlite-jdbc = { group = "org.xerial", name = "sqlite-jdbc", version.ref = "sqliteJdbc" }
+arsclib = { group = "io.github.reandroid", name = "ARSCLib", version.ref = "arsclib" }
 smali-dexlib2 = { group = "org.smali", name = "dexlib2", version.ref = "smali" }
 smali-baksmali = { group = "org.smali", name = "baksmali", version.ref = "smali" }
 apk-parser = { group = "com.jaredrummler", name = "apk-parser", version.ref = "apkParser" }

@@ -5,7 +5,7 @@ Mapa detallado de la arquitectura de directorios, capas de responsabilidad y com
 ```
 apk-extractor/
 ├── app/
-│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias (smali, apk-parser, etc.)
+│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias (ARSCLib, smali, Media3, Coil, apk-parser, Tika, Zstd, LZ4, Brotli, Commons-Compress, Protobuf, MsgPack, CBOR, SQLite-JDBC)
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml      # Permisos del sistema (SAF, QUERY_ALL_PACKAGES) y Activities
@@ -22,44 +22,49 @@ apk-extractor/
 │       │   │       ├── src/lib.rs       # Rutinas Rust exportadas con #[no_mangle]
 │       │   │       └── rust_core_abi.c  # Capa C ABI que implementa Goblin & Capstone para ELF y ASM
 │       │   ├── java/com/example/
-│       │   │   ├── MainActivity.kt      # Actividad principal con configuración de rutas Compose
+│       │   │   ├── MainActivity.kt      # Actividad principal con configuración de rutas Compose y Edge-to-Edge
 │       │   │   ├── data/
-│       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML, DEX y ELF
+│       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML, DEX, ELF, ARSC y guardado binario
+│       │   │   │   ├── AppDispatchers.kt          # Despachadores de corrutinas optimizados (ComputeDispatcher y FastIODispatcher)
+│       │   │   │   ├── ArscParser.kt              # Parser de resources.arsc mediante io.github.reandroid:ARSCLib
+│       │   │   │   ├── BinaryDataParser.kt        # Analizador binario (.dat/.bin), cálculo de Entropía de Shannon, formateo Hex y extractor de cadenas
 │       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali con baksmali 2.5.2 e indexación de clases DEX
 │       │   │   │   ├── DexToJavaTranslator.kt     # Traductor y reconstructor de bytecode Dalvik a código Java
 │       │   │   │   └── NativeElfDisassembler.kt   # Parseo ELF con Goblin y desensamblado ASM con Capstone
 │       │   │   ├── model/
-│       │   │   │   ├── ApkFileItem.kt        # Entidad de archivo extraído (tamaño, tipo, extensiones)
-│       │   │   │   ├── ExtractedProject.kt   # Metadata de sesiones y proyectos guardados en caché
-│       │   │   │   ├── ExtractionProgress.kt # Estado reactivo del progreso de extracción
-│       │   │   │   └── InstalledAppItem.kt   # Información de apps instaladas leídas del dispositivo
+│       │   │   │   ├── ApkModel.kt                # Modelos de datos: FileCategory (ARSC, DEX, ELF, AUDIO, IMAGE, BINARY_DATA), ApkProject, ExtractedFileItem, StorageInfo
+│       │   │   │   └── InstalledAppItem.kt        # Modelo y metadatos de apps instaladas leídas del dispositivo
 │       │   │   ├── nativebridge/
-│       │   │   │   └── NativeEngineBridge.kt # Interfaz JNI que interactúa con la librería libapk_native_engine.so
+│       │   │   │   └── NativeEngineBridge.kt      # Interfaz JNI que interactúa con libapk_native_engine.so
 │       │   │   ├── ui/
+│       │   │   │   ├── components/
+│       │   │   │   │   ├── ArscViewerContent.kt       # Visor táctil interactivo de recursos ARSC con filtros y buscador
+│       │   │   │   │   ├── AudioPlayerView.kt         # Reproductor de audio nativo con AndroidX Media3 ExoPlayer
+│       │   │   │   │   ├── BinaryDataViewerContent.kt # Visor y editor táctil de archivos .dat/.bin (Hex, Texto UTF-8, Inspector de Entropía y Strings)
+│       │   │   │   │   └── ImageViewerView.kt         # Visor de imágenes con Coil Compose y zoom multitáctil
 │       │   │   │   ├── navigation/
-│       │   │   │   │   └── Screen.kt         # Definición de pantallas y parámetros de navegación
+│       │   │   │   │   └── Screen.kt              # Definición de rutas y destinos de navegación Compose
 │       │   │   │   ├── screens/
 │       │   │   │   │   ├── HomeScreen.kt          # Panel de inicio, selección SAF y estado del sistema
-│       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas
-│       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión
-│       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK
-│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, desensamblador Smali/Java para DEX, ELF (.so) con Goblin/Capstone y editor
+│       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas del sistema/usuario
+│       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión streaming
+│       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK con categorización
+│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, Smali/Java DEX, ELF (.so), ARSC, multimedia y editor
 │       │   │   │   │   └── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal
-
 │       │   │   │   └── theme/
 │       │   │   │       ├── Color.kt               # Paleta ciberpunk/terminal (Slate, Cyan, Mint, Amber)
 │       │   │   │       ├── Theme.kt               # Tema Material 3 oscuro
 │       │   │   │       └── Type.kt                # Tipografía con soporte monoespaciado
 │       │   │   └── viewmodel/
-│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX, AXML y guardado en disco
+│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX, ARSC, ELF, AXML y guardado en disco
 │       │   └── res/                               # Recursos gráficos, iconos adaptativos y strings
-│       └── test/java/com/example/                 # Pruebas unitarias locales (DexViewerUnitTest, ExampleUnitTest)
+│       └── test/java/com/example/                 # Pruebas unitarias locales (ArscViewerUnitTest, DexViewerUnitTest, etc.)
 ├── .gitignore                           # Exclusiones de Git para Android, C/C++, CMake, Rust y Lua
-├── gradle/                              # Wrapper y catálogo de dependencias
+├── gradle/                              # Wrapper y catálogo de dependencias (libs.versions.toml)
 ├── build.gradle.kts                     # Configuración del proyecto raíz
 ├── settings.gradle.kts                  # Configuración de repositorios y módulos
 ├── README.md                            # Documentación principal actualizada
-├── ROADMAP.md                           # Fases de desarrollo planificadas
+├── ROADMAP.md                           # Fases de desarrollo y estado de hitos
 ├── STRUCTURE.md                         # Mapa arquitectónico del sistema
 ├── AI_CONTEXT.md                        # Contexto técnico para modelos de lenguaje
 ├── commit_message.txt                   # Registro en español del último conjunto de cambios

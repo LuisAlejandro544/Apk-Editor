@@ -41,8 +41,12 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.DataObject
 import com.example.ui.components.AudioPlayerView
 import com.example.ui.components.ImageViewerView
+import com.example.ui.components.ArscViewerContent
+import com.example.ui.components.BinaryDataViewerContent
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -131,9 +135,9 @@ fun FileDetailScreen(
     viewModel.loadFileDetail(projectId, relativePath)
   }
 
-  // Si es un archivo decodificado por apk-parser, DEX, ELF (.so), imagen, audio o editable, abrir directamente en la pestaña del visor/editor
-  LaunchedEffect(state.isEditable, state.isAxmlDecoded, state.isDex, state.isSo, state.isImage, state.isAudio) {
-    if (state.isAxmlDecoded || state.isEditable || state.isDex || state.isSo || state.isImage || state.isAudio || relativePath.endsWith(".xml", ignoreCase = true) || relativePath.endsWith(".so", ignoreCase = true)) {
+  // Si es un archivo decodificado por apk-parser, DEX, ELF (.so), ARSC, imagen, audio, binario de datos (.dat/.bin) o editable, abrir directamente en la pestaña del visor/editor
+  LaunchedEffect(state.isEditable, state.isAxmlDecoded, state.isDex, state.isSo, state.isImage, state.isAudio, state.isArsc, state.isBinaryData) {
+    if (state.isAxmlDecoded || state.isEditable || state.isDex || state.isSo || state.isImage || state.isAudio || state.isArsc || state.isBinaryData || relativePath.endsWith(".xml", ignoreCase = true) || relativePath.endsWith(".so", ignoreCase = true) || relativePath.endsWith(".arsc", ignoreCase = true) || relativePath.endsWith(".dat", ignoreCase = true) || relativePath.endsWith(".bin", ignoreCase = true)) {
       selectedTab = 1
     }
   }
@@ -283,6 +287,8 @@ fun FileDetailScreen(
                     state.isImage -> Icons.Default.Image
                     state.isAudio -> Icons.Default.MusicNote
                     state.isSo -> Icons.Default.IntegrationInstructions
+                    state.isArsc -> Icons.Default.TableChart
+                    state.isBinaryData -> Icons.Default.DataObject
                     else -> Icons.Default.Code
                   },
                   contentDescription = null,
@@ -295,6 +301,8 @@ fun FileDetailScreen(
                     state.isAudio -> "Reproductor Audio"
                     state.isDex -> "DEX / Código"
                     state.isSo -> "ELF (.so) / ASM"
+                    state.isArsc -> "Recursos (ARSC)"
+                    state.isBinaryData -> "Editor Binario"
                     state.isAxmlDecoded || state.isEditable -> "Editor / Código"
                     else -> "Texto"
                   },
@@ -393,6 +401,20 @@ fun FileDetailScreen(
                 audioFile = File(state.absolutePath),
                 fileName = state.fileName,
                 fileSizeFormatted = com.example.model.formatBytes(state.sizeBytes),
+                modifier = Modifier.fillMaxSize()
+              )
+            } else if (state.isArsc) {
+              ArscViewerContent(
+                state = state,
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize()
+              )
+            } else if (state.isBinaryData) {
+              BinaryDataViewerContent(
+                state = state,
+                viewModel = viewModel,
+                projectId = projectId,
+                relativePath = relativePath,
                 modifier = Modifier.fillMaxSize()
               )
             } else {

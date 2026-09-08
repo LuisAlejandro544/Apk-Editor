@@ -40,17 +40,23 @@ private val LightColorScheme = DarkColorScheme // Tech theme works best consiste
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  dynamicColor: Boolean = false, // Use our signature cyber dark scheme
+  dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
-  val colorScheme = DarkColorScheme
+  val context = LocalContext.current
+  val colorScheme = when {
+    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+      dynamicDarkColorScheme(context)
+    }
+    else -> DarkColorScheme
+  }
   val view = LocalView.current
   if (!view.isInEditMode) {
     SideEffect {
       val window = (view.context as? Activity)?.window
       if (window != null) {
-        window.statusBarColor = SlateDark.toArgb()
-        window.navigationBarColor = SlateDark.toArgb()
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
       }

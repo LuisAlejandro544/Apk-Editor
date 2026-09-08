@@ -22,7 +22,7 @@ apk-extractor/
 │       │   │       ├── src/lib.rs       # Rutinas Rust exportadas con #[no_mangle]
 │       │   │       └── rust_core_abi.c  # Capa C ABI que implementa Goblin & Capstone para ELF y ASM
 │       │   ├── java/com/example/
-│       │   │   ├── MainActivity.kt      # Actividad principal con configuración de rutas Compose y Edge-to-Edge
+│       │   │   ├── MainActivity.kt      # Actividad principal con configuración Edge-to-Edge, observador de tema y rutas Compose
 │       │   │   ├── data/
 │       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML, DEX, ELF, ARSC y guardado binario
 │       │   │   │   ├── AppDispatchers.kt          # Despachadores de corrutinas optimizados (ComputeDispatcher y FastIODispatcher)
@@ -33,6 +33,7 @@ apk-extractor/
 │       │   │   │   └── NativeElfDisassembler.kt   # Parseo ELF con Goblin y desensamblado ASM con Capstone
 │       │   │   ├── model/
 │       │   │   │   ├── ApkModel.kt                # Modelos de datos: FileCategory (ARSC, DEX, ELF, AUDIO, IMAGE, BINARY_DATA), ApkProject, ExtractedFileItem, StorageInfo
+│       │   │   │   ├── AppSettings.kt             # Modelo de configuración: enum AppThemeMode (CYBER_DARK, MATERIAL_YOU)
 │       │   │   │   └── InstalledAppItem.kt        # Modelo y metadatos de apps instaladas leídas del dispositivo
 │       │   │   ├── nativebridge/
 │       │   │   │   └── NativeEngineBridge.kt      # Interfaz JNI que interactúa con libapk_native_engine.so
@@ -43,30 +44,21 @@ apk-extractor/
 │       │   │   │   │   ├── BinaryDataViewerContent.kt # Visor y editor táctil de archivos .dat/.bin (Hex, Texto UTF-8, Inspector de Entropía y Strings)
 │       │   │   │   │   └── ImageViewerView.kt         # Visor de imágenes con Coil Compose y zoom multitáctil
 │       │   │   │   ├── navigation/
-│       │   │   │   │   └── Screen.kt              # Definición de rutas y destinos de navegación Compose
+│       │   │   │   │   └── Screen.kt              # Definición de rutas y destinos de navegación Compose (Home, InstalledApps, Extraction, Explorer, Detail, Cache, Settings)
 │       │   │   │   ├── screens/
-│       │   │   │   │   ├── HomeScreen.kt          # Panel de inicio, selección SAF y estado del sistema
-│       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas del sistema/usuario
+│       │   │   │   │   ├── HomeScreen.kt          # Panel de inicio, selección SAF, estado y acceso a Configuración (con statusBarsPadding)
+│       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas del sistema/usuario (con insets seguros)
 │       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión streaming
-│       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK con categorización
-│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, Smali/Java DEX, ELF (.so), ARSC, multimedia y editor
-│       │   │   │   │   └── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal
+│       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK con categorización (con insets seguros)
+│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, Smali/Java DEX, ELF (.so), ARSC, multimedia y editor (con statusBarsPadding)
+│       │   │   │   │   ├── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal (con insets seguros)
+│       │   │   │   │   └── SettingsScreen.kt      # Pantalla de Configuración con selector de tema (Material You vs Cyber Dark) e información Edge-to-Edge
 │       │   │   │   └── theme/
 │       │   │   │       ├── Color.kt               # Paleta ciberpunk/terminal (Slate, Cyan, Mint, Amber)
-│       │   │   │       ├── Theme.kt               # Tema Material 3 oscuro
+│       │   │   │       ├── Theme.kt               # Tema Material 3 adaptativo con soporte para dynamicDarkColorScheme (Material You)
 │       │   │   │       └── Type.kt                # Tipografía con soporte monoespaciado
 │       │   │   └── viewmodel/
-│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX, ARSC, ELF, AXML y guardado en disco
+│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX, ARSC, ELF, AXML, BinaryData y persistencia de tema
 │       │   └── res/                               # Recursos gráficos, iconos adaptativos y strings
-│       └── test/java/com/example/                 # Pruebas unitarias locales (ArscViewerUnitTest, DexViewerUnitTest, etc.)
-├── .gitignore                           # Exclusiones de Git para Android, C/C++, CMake, Rust y Lua
-├── gradle/                              # Wrapper y catálogo de dependencias (libs.versions.toml)
-├── build.gradle.kts                     # Configuración del proyecto raíz
-├── settings.gradle.kts                  # Configuración de repositorios y módulos
-├── README.md                            # Documentación principal actualizada
-├── ROADMAP.md                           # Fases de desarrollo y estado de hitos
-├── STRUCTURE.md                         # Mapa arquitectónico del sistema
-├── AI_CONTEXT.md                        # Contexto técnico para modelos de lenguaje
-├── commit_message.txt                   # Registro en español del último conjunto de cambios
-└── AGENTS.md                            # Reglas operativas y directrices de desarrollo
+│       └── test/java/com/example/                 # Suites de pruebas unitarias (AppSettingsUnitTest, BinaryDataViewerUnitTest, ArscViewerUnitTest, DexViewerUnitTest, etc.)
 ```

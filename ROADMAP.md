@@ -16,7 +16,7 @@ Este documento describe las fases de evolución técnica planificadas para conve
 
 ---
 
-## Fase 2: Decompilación y Análisis DEX / XML Binario / ARSC (Completada)
+## Fase 2: Decompilación, Recursos ARSC, Binarios y Material You (Completada)
 - [x] **Decodificador de AXML (apk-parser)**: Conversión y desensamblado transparente de `AndroidManifest.xml` y layouts binarios a XML legible estructurado.
 - [x] **Visor y Desensamblador DEX en Crudo (Smali)**: Integración de `org.smali:dexlib2` y `baksmali:2.5.2` para desensamblado exacto de bytecode Dalvik a Smali.
 - [x] **Descompilador DEX a Java**: Traductor estructural `DexToJavaTranslator` que reconstruye clases, imports, campos, constructores, firmas de métodos y pseudocódigo de alto nivel en sintaxis Java legible.
@@ -40,6 +40,11 @@ Este documento describe las fases de evolución técnica planificadas para conve
   - Editor hexadecimal interactivo con formateo automático, conteo dinámico de bytes y validación estricta de paridad.
   - Editor de texto plano UTF-8 / ISO-8859-1 con numeración de líneas y persistencia en caché.
   - Inspector de estructura con cálculo de Entropía de Shannon (0.0 - 8.0), detección de magic bytes y extracción de cadenas legibles (strings) con buscador reactivo y copiado rápido.
+- [x] **Apartado de Configuración y Personalización Visual (`SettingsScreen.kt`)**:
+  - Soporte para **Material You (Color Dinámico)**: Integración con Monet en Android 12+ (API 31+) extrayendo la paleta cromática del fondo de pantalla del usuario.
+  - Soporte para **Cyber Dark**: Paleta clásica de ingeniería inversa de alto contraste (Azul Pizarra, Cian, Menta, Ámbar).
+  - Persistencia de preferencias en SharedPreferences.
+  - **Corrección de Modo Pantalla Completa (Edge-to-Edge)**: Implementación de márgenes de seguridad (`statusBarsPadding` y `navigationBarsPadding`) en todas las pantallas para evitar solapamientos con la barra de estado y la barra de navegación táctil del teléfono.
 - [ ] **Análisis de Permisos y Componentes**: Extractor dedicado de Activities, Services, Receivers y Providers declarados en la app.
 
 ---
@@ -55,9 +60,3 @@ Este documento describe las fases de evolución técnica planificadas para conve
 - [x] **Inspector y Desensamblador de Librerías Nativas ELF (.so) con Goblin y Capstone**: Verificación de protecciones de compilación (PIE, stack canaries, RELRO, NX), extracción de símbolos dinámicos y funciones JNI, inspección de dependencias compartidas (DT_NEEDED) y desensamblado ASM de instrucciones nativas.
 - [ ] **Verificación de Firmas APK**: Análisis de esquemas de firma v1 (JAR), v2 (APK Signature Scheme), v3 y v4.
 - [ ] **Detección de Trackers y Vulnerabilidades**: Escaneo de librerías de terceros (Google Ads, Facebook SDK, Unity, etc.).
-
----
-
-## Fase 5: Reempaquetado y Firma en el Dispositivo
-- [ ] **Recompilación ZIP/APK**: Generar un nuevo archivo `.apk` a partir de la carpeta extraída y modificada.
-- [ ] **Firma Automática con Llave de Pruebas**: Firma con zipalign y apksigner nativos integrados para permitir la reinstalación inmediata en el teléfono.

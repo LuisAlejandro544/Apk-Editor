@@ -9,6 +9,7 @@ sealed class Screen(val route: String) {
   object InstalledApps : Screen("installed_apps")
   object Extraction : Screen("extraction")
   object CacheManager : Screen("cache_manager")
+  object Settings : Screen("settings")
 
   object FileExplorer : Screen("explorer/{projectId}?subPath={subPath}") {
     fun createRoute(projectId: String, subPath: String = ""): String {

@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -143,12 +145,13 @@ fun FileDetailScreen(
   }
 
   Scaffold(
-    containerColor = SlateDark,
+    containerColor = MaterialTheme.colorScheme.background,
     topBar = {
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .background(SlateNavy)
+          .background(MaterialTheme.colorScheme.surface)
+          .statusBarsPadding()
           .padding(horizontal = 16.dp, vertical = 12.dp)
       ) {
         Row(
@@ -331,7 +334,8 @@ fun FileDetailScreen(
       Box(
         modifier = Modifier
           .fillMaxSize()
-          .padding(paddingValues),
+          .padding(paddingValues)
+          .navigationBarsPadding(),
         contentAlignment = Alignment.Center
       ) {
         CircularProgressIndicator(color = CyanPrimary)
@@ -341,6 +345,7 @@ fun FileDetailScreen(
         modifier = Modifier
           .fillMaxSize()
           .padding(paddingValues)
+          .navigationBarsPadding()
           .padding(16.dp)
       ) {
         when (selectedTab) {

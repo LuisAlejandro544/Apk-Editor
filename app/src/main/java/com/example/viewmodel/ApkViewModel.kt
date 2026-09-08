@@ -9,6 +9,8 @@ import com.example.model.ApkProject
 import com.example.model.ExtractedFileItem
 import com.example.model.ExtractionProgress
 import com.example.model.StorageInfo
+import com.example.model.AppThemeMode
+import android.content.Context
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
@@ -87,6 +89,21 @@ enum class ArscViewMode {
 class ApkViewModel(application: Application) : AndroidViewModel(application) {
 
   private val repository = ApkExtractorRepository(application)
+  private val appPrefs = application.getSharedPreferences("apk_app_theme_prefs", Context.MODE_PRIVATE)
+
+  private val _themeMode = MutableStateFlow(
+    if (appPrefs.getString("theme_mode", AppThemeMode.CYBER_DARK.name) == AppThemeMode.MATERIAL_YOU.name) {
+      AppThemeMode.MATERIAL_YOU
+    } else {
+      AppThemeMode.CYBER_DARK
+    }
+  )
+  val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
+
+  fun setThemeMode(mode: AppThemeMode) {
+    _themeMode.value = mode
+    appPrefs.edit().putString("theme_mode", mode.name).apply()
+  }
 
   private val _projects = MutableStateFlow<List<ApkProject>>(emptyList())
   val projects: StateFlow<List<ApkProject>> = _projects.asStateFlow()

@@ -32,13 +32,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.IntegrationInstructions
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Visibility
+import com.example.ui.components.AudioPlayerView
+import com.example.ui.components.ImageViewerView
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -81,6 +85,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.DexClassItem
+import com.example.data.ElfSymbolItem
+import com.example.data.SoViewMode
 import com.example.model.formatBytes
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CodeBackground
@@ -117,13 +123,17 @@ fun FileDetailScreen(
   var showClassPickerSheet by remember { mutableStateOf(false) }
   var classSearchFilter by remember { mutableStateOf("") }
 
+  var showSymbolPickerSheet by remember { mutableStateOf(false) }
+  var symbolSearchFilter by remember { mutableStateOf("") }
+  var jniOnlyFilter by remember { mutableStateOf(false) }
+
   LaunchedEffect(projectId, relativePath) {
     viewModel.loadFileDetail(projectId, relativePath)
   }
 
-  // Si es un archivo decodificado por apk-parser, DEX o editable, abrir directamente en la pestaña del editor
-  LaunchedEffect(state.isEditable, state.isAxmlDecoded, state.isDex) {
-    if (state.isAxmlDecoded || state.isEditable || state.isDex || relativePath.endsWith(".xml", ignoreCase = true)) {
+  // Si es un archivo decodificado por apk-parser, DEX, ELF (.so), imagen, audio o editable, abrir directamente en la pestaña del visor/editor
+  LaunchedEffect(state.isEditable, state.isAxmlDecoded, state.isDex, state.isSo, state.isImage, state.isAudio) {
+    if (state.isAxmlDecoded || state.isEditable || state.isDex || state.isSo || state.isImage || state.isAudio || relativePath.endsWith(".xml", ignoreCase = true) || relativePath.endsWith(".so", ignoreCase = true)) {
       selectedTab = 1
     }
   }
@@ -167,10 +177,10 @@ fun FileDetailScreen(
               overflow = TextOverflow.Ellipsis
             )
             Text(
-              text = if (state.isDex && state.selectedDexClass != null) {
-                "${state.relativePath}  •  ${state.selectedDexClass?.simpleClassName}"
-              } else {
-                state.relativePath
+              text = when {
+                state.isSo && state.selectedSoSymbol != null -> "${state.relativePath}  •  ${state.selectedSoSymbol?.displayName}"
+                state.isDex && state.selectedDexClass != null -> "${state.relativePath}  •  ${state.selectedDexClass?.simpleClassName}"
+                else -> state.relativePath
               },
               style = MaterialTheme.typography.labelSmall,
               fontFamily = FontFamily.Monospace,
@@ -179,6 +189,7 @@ fun FileDetailScreen(
               overflow = TextOverflow.Ellipsis
             )
           }
+
 
           if (hasUnsavedChanges) {
             IconButton(
@@ -267,11 +278,23 @@ fun FileDetailScreen(
             onClick = { selectedTab = 1 },
             text = {
               Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(
+                  imageVector = when {
+                    state.isImage -> Icons.Default.Image
+                    state.isAudio -> Icons.Default.MusicNote
+                    state.isSo -> Icons.Default.IntegrationInstructions
+                    else -> Icons.Default.Code
+                  },
+                  contentDescription = null,
+                  modifier = Modifier.size(16.dp)
+                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                   when {
+                    state.isImage -> "Visor Imagen"
+                    state.isAudio -> "Reproductor Audio"
                     state.isDex -> "DEX / Código"
+                    state.isSo -> "ELF (.so) / ASM"
                     state.isAxmlDecoded || state.isEditable -> "Editor / Código"
                     else -> "Texto"
                   },
@@ -280,6 +303,7 @@ fun FileDetailScreen(
               }
             }
           )
+
           Tab(
             selected = selectedTab == 2,
             onClick = { selectedTab = 2 },
@@ -357,9 +381,24 @@ fun FileDetailScreen(
           }
 
           1 -> {
-            // Editor / Visor de Código (Soporta DEX con Smali y Java)
-            val isBinaryNotice = state.textContent.startsWith("Este archivo contiene datos binarios")
-            if (isBinaryNotice && !state.isDex) {
+            // Renderizado multimedia nativo (Coil para imágenes y Media3 ExoPlayer para audio)
+            if (state.isImage) {
+              ImageViewerView(
+                imageFile = File(state.absolutePath),
+                fileSizeFormatted = com.example.model.formatBytes(state.sizeBytes),
+                modifier = Modifier.fillMaxSize()
+              )
+            } else if (state.isAudio) {
+              AudioPlayerView(
+                audioFile = File(state.absolutePath),
+                fileName = state.fileName,
+                fileSizeFormatted = com.example.model.formatBytes(state.sizeBytes),
+                modifier = Modifier.fillMaxSize()
+              )
+            } else {
+              // Editor / Visor de Código (Soporta DEX con Smali/Java y ELF .so con Goblin/Capstone)
+              val isBinaryNotice = state.textContent.startsWith("Este archivo contiene datos binarios")
+              if (isBinaryNotice && !state.isDex && !state.isSo) {
               Card(
                 colors = CardDefaults.cardColors(containerColor = CodeBackground),
                 border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(SlateCardBorder)),
@@ -490,6 +529,72 @@ fun FileDetailScreen(
                       Spacer(modifier = Modifier.height(8.dp))
                     }
 
+                    // Fila 1b: Selectores de Formato ELF .so (Goblin & Capstone)
+                    if (state.isSo) {
+                      Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                      ) {
+                        // Selector de modo scrollable para pantalla táctil móvil
+                        Row(
+                          modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState())
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SlateCard)
+                            .padding(2.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                          SoViewMode.values().forEach { mode ->
+                            val isSelected = state.soViewMode == mode
+                            Box(
+                              modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) CyanPrimary else SlateCard)
+                                .clickable { viewModel.switchSoViewMode(mode) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                              Text(
+                                text = "${mode.iconBadge} ${mode.label}",
+                                color = if (isSelected) SlateDark else TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                              )
+                            }
+                          }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Botón para elegir símbolo dentro del .so
+                        Button(
+                          onClick = { showSymbolPickerSheet = true },
+                          colors = ButtonDefaults.buttonColors(containerColor = SlateCard),
+                          shape = RoundedCornerShape(6.dp),
+                          contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                          modifier = Modifier.height(30.dp)
+                        ) {
+                          Icon(
+                            imageVector = Icons.Default.IntegrationInstructions,
+                            contentDescription = null,
+                            tint = CyanPrimary,
+                            modifier = Modifier.size(14.dp)
+                          )
+                          Spacer(modifier = Modifier.width(4.dp))
+                          Text(
+                            text = "${state.soSymbols.size} Símbolos",
+                            color = CyanPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                          )
+                        }
+                      }
+
+                      Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     // Fila 2: Indicadores y Botones de Acción (Guardar / Modo Edición)
                     Row(
                       modifier = Modifier.fillMaxWidth(),
@@ -526,17 +631,45 @@ fun FileDetailScreen(
                               fontWeight = FontWeight.Bold
                             )
                           }
+                        } else if (state.isSo) {
+                          Box(
+                            modifier = Modifier
+                              .background(CyanPrimary.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                              .padding(horizontal = 6.dp, vertical = 2.dp)
+                          ) {
+                            Text(
+                              text = "ELF (Goblin & Capstone)",
+                              color = CyanGlow,
+                              fontSize = 11.sp,
+                              fontWeight = FontWeight.Bold
+                            )
+                          }
                         }
 
-                        val lineCount = remember(editedText) { editedText.lines().size }
-                        Text(
-                          text = "$lineCount líneas",
-                          style = MaterialTheme.typography.labelSmall,
-                          fontFamily = FontFamily.Monospace,
-                          color = TextMuted,
-                          fontSize = 11.sp
-                        )
+                        if (state.isSoAnalyzing || state.isDexDecompiling) {
+                          CircularProgressIndicator(
+                            color = CyanPrimary,
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                          )
+                          Text(
+                            text = if (state.isSoAnalyzing) "Analizando ELF..." else "Descompilando...",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyanPrimary,
+                            fontSize = 11.sp
+                          )
+                        } else {
+                          val lineCount = remember(editedText) { editedText.lines().size }
+                          Text(
+                            text = "$lineCount líneas",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = TextMuted,
+                            fontSize = 11.sp
+                          )
+                        }
                       }
+
 
                       Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -719,6 +852,7 @@ fun FileDetailScreen(
               }
             }
           }
+          }
 
           2 -> {
             // Metadata Viewer
@@ -886,6 +1020,167 @@ fun FileDetailScreen(
                       color = TextMuted,
                       maxLines = 1,
                       overflow = TextOverflow.Ellipsis
+                    )
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Modal Bottom Sheet para explorar y seleccionar símbolos ELF dentro del .so (Goblin)
+  if (showSymbolPickerSheet) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(
+      onDismissRequest = { showSymbolPickerSheet = false },
+      sheetState = sheetState,
+      containerColor = SlateNavy
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp, vertical = 12.dp)
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Column {
+            Text(
+              text = "Símbolos ELF en ${state.fileName}",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = TextPrimary
+            )
+            Text(
+              text = "Motor Goblin (Rust) & Desensamblador Capstone",
+              style = MaterialTheme.typography.bodySmall,
+              color = TextMuted
+            )
+          }
+
+          // Chip filtro solo JNI
+          Box(
+            modifier = Modifier
+              .clip(RoundedCornerShape(6.dp))
+              .background(if (jniOnlyFilter) CyanPrimary else SlateCard)
+              .clickable { jniOnlyFilter = !jniOnlyFilter }
+              .padding(horizontal = 8.dp, vertical = 4.dp)
+          ) {
+            Text(
+              text = "⭐ Solo JNI",
+              color = if (jniOnlyFilter) SlateDark else TextSecondary,
+              fontSize = 11.sp,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+          value = symbolSearchFilter,
+          onValueChange = { symbolSearchFilter = it },
+          placeholder = { Text("Buscar símbolo o función...", color = TextMuted) },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth(),
+          colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = CyanPrimary,
+            unfocusedBorderColor = SlateCardBorder,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary
+          )
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val filteredSymbols = remember(state.soSymbols, symbolSearchFilter, jniOnlyFilter) {
+          state.soSymbols.filter { sym ->
+            val matchesFilter = symbolSearchFilter.isBlank() || sym.name.contains(symbolSearchFilter.trim(), ignoreCase = true)
+            val matchesJni = !jniOnlyFilter || sym.isJni
+            matchesFilter && matchesJni
+          }
+        }
+
+        if (filteredSymbols.isEmpty()) {
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(180.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            Text(
+              text = if (jniOnlyFilter) "No se encontraron funciones JNI" else "No se encontraron símbolos coincidentes",
+              style = MaterialTheme.typography.bodyMedium,
+              color = TextMuted
+            )
+          }
+        } else {
+          LazyColumn(
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(350.dp)
+          ) {
+            items(filteredSymbols) { item ->
+              val isSelected = state.selectedSoSymbol?.name == item.name
+              Card(
+                colors = CardDefaults.cardColors(
+                  containerColor = if (isSelected) CyanPrimary.copy(alpha = 0.15f) else SlateCard
+                ),
+                border = CardDefaults.outlinedCardBorder().copy(
+                  brush = SolidColor(if (isSelected) CyanPrimary else SlateCardBorder)
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 4.dp)
+                  .clip(RoundedCornerShape(8.dp))
+                  .clickable {
+                    viewModel.switchSoSymbol(item)
+                    showSymbolPickerSheet = false
+                  }
+              ) {
+                Row(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Box(
+                    modifier = Modifier
+                      .size(32.dp)
+                      .clip(RoundedCornerShape(6.dp))
+                      .background(if (item.isJni) CyanPrimary else (if (isSelected) CyanPrimary else SlateNavy)),
+                    contentAlignment = Alignment.Center
+                  ) {
+                    Text(
+                      text = if (item.isJni) "JNI" else (if (item.isExport) "EXP" else "SYM"),
+                      color = if (item.isJni || isSelected) SlateDark else CyanPrimary,
+                      fontWeight = FontWeight.Bold,
+                      fontSize = 10.sp
+                    )
+                  }
+
+                  Spacer(modifier = Modifier.width(12.dp))
+
+                  Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                      text = item.name,
+                      style = MaterialTheme.typography.bodyMedium,
+                      fontFamily = FontFamily.Monospace,
+                      fontWeight = FontWeight.Bold,
+                      color = if (item.isJni) CyanGlow else TextPrimary,
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                      text = if (item.isJni) "Función Nativa Java/JNI" else if (item.isExport) "Símbolo Exportado" else "Símbolo Importado",
+                      style = MaterialTheme.typography.labelSmall,
+                      color = TextMuted
                     )
                   }
                 }

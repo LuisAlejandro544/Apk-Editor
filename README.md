@@ -13,17 +13,26 @@ Permite a desarrolladores, investigadores de seguridad y entusiastas de Android 
    - **Bytecode Crudo (Smali)**: Desensamblado exacto de instrucciones Dalvik a sintaxis Smali pura mediante Baksmali 2.5.2.
    - **Descompilador a Java Estructural**: Reconstrucción de clases, paquetes, firmas de métodos, tipos de datos y pseudocódigo Java comprensible para el usuario común.
    - **Explorador de Clases Integrado**: Selector modal en hoja inferior (*bottom sheet*) con buscador y filtrado interactivo entre todas las clases compiladas del archivo DEX.
-5. **Editor de Código Móvil con Persistencia**: Modificación interactiva de código (Smali, Java, XML, JSON, texto) con numeración de líneas alineada verticalmente, alternancia entre modo lectura y edición, detección de cambios sin guardar y guardado persistente en disco con recálculo automático de hash SHA-256 y tamaño.
-6. **Decodificación Automática de AXML (apk-parser)**: Conversión transparente de binarios compilados de Android (`AndroidManifest.xml` y recursos XML) a texto XML legible sin pérdida de etiquetas ni atributos.
-7. **Explorador de Archivos Integrado**: Árbol de directorios con migas de pan (*breadcrumbs*), filtrado rápido y categorización visual por tipo de recurso (DEX, Manifiesto, ARSC, Recursos gráficos, Assets, Librerías ELF).
-8. **Inspección Hexadecimal (Hex Dump)**: Visor hexadecimal con offsets y representación ASCII para auditoría de bajo nivel de cualquier archivo binario o librería `.so`.
-9. **Gestor de Caché y Memoria**: Supervisión de espacio en disco en tiempo real y limpieza segura de proyectos temporales.
-10. **Arquitectura Multilenguaje Vinculada (`libapk_native_engine.so`)**:
-    - **C (C11)**: Operaciones de bajo nivel, JNI bridge y compresión directa.
+5. **Visor y Desensamblador de Librerías Nativas ELF (.so) con Goblin y Capstone**:
+   - **Análisis de Cabecera y Hardening (Goblin)**: Inspección de arquitectura (ARM64, ARMv7, x86_64, x86), endianness, tipo ELF, entry point y auditoría de mitigaciones de seguridad (PIE, NX/DEP, RELRO y Stack Canaries).
+   - **Símbolos y Funciones JNI**: Detección y filtrado de funciones nativas Java (`Java_*`), símbolos exportados dinámicos y dependencias importadas.
+   - **Explorador de Símbolos en Modal Bottom Sheet**: Selector con búsqueda interactiva y filtro "⭐ Solo JNI" para navegar entre funciones nativas al igual que con clases DEX.
+   - **Dependencias Compartidas (DT_NEEDED)**: Lista de bibliotecas dinámicas vinculadas (libc.so, libm.so, liblog.so, etc.).
+   - **Desensamblado ASM (Capstone)**: Desensamblado de código nativo a nivel de instrucciones con offsets y representación mnemónica.
+   - **Extractor de Cadenas (Strings)**: Extracción y filtrado de cadenas ASCII embebidas en el binario.
+6. **Editor de Código Móvil con Persistencia**: Modificación interactiva de código (Smali, Java, XML, JSON, texto) con numeración de líneas alineada verticalmente, alternancia entre modo lectura y edición, detección de cambios sin guardar y guardado persistente en disco con recálculo automático de hash SHA-256 y tamaño.
+7. **Decodificación Automática de AXML (apk-parser)**: Conversión transparente de binarios compilados de Android (`AndroidManifest.xml` y recursos XML) a texto XML legible sin pérdida de etiquetas ni atributos.
+8. **Explorador de Archivos Integrado**: Árbol de directorios con migas de pan (*breadcrumbs*), filtrado rápido y categorización visual por tipo de recurso (DEX, Manifiesto, ARSC, Recursos gráficos, Assets, Librerías ELF).
+9. **Inspección Hexadecimal (Hex Dump)**: Visor hexadecimal con offsets y representación ASCII para auditoría de bajo nivel de cualquier archivo binario o librería `.so`.
+10. **Gestor de Caché y Memoria**: Supervisión de espacio en disco en tiempo real y limpieza segura de proyectos temporales.
+11. **Arquitectura Multilenguaje Vinculada (`libapk_native_engine.so`)**:
+    - **C (C11)**: Operaciones de bajo nivel, JNI bridge, liberación de memoria (`rust_apk_free_string`) y compresión directa.
     - **C++ (C++17)**: Motor para parsing de bytecode DEX y tablas de recursos.
-    - **Rust**: ABI nativa con C y análisis de integridad criptográfica.
+    - **Rust / Goblin**: ABI nativa con C, motor Goblin para análisis de estructuras binarias ELF y verificación criptográfica.
+    - **Capstone**: Motor de desensamblado de instrucciones máquina para arquitecturas móviles.
     - **Lua (5.4.7 C original)**: Intérprete nativo sin capas wrapper intermedias para scripts y parches automatizados.
     - **Compilación Activa**: Vinculado al sistema de compilación de Gradle mediante CMake 3.22.1 y NDK 26.1 con soporte para arquitecturas arm64-v8a y armeabi-v7a.
+
 
 ## Requisitos Previos
 - Dispositivo o emulador Android con Android 8.0 (API 26) o superior (recomendado Android 10+ / API 29+).

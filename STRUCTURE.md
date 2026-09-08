@@ -17,15 +17,17 @@ apk-extractor/
 │       │   │   │   ├── lua.h / lauxlib.h / lualib.h
 │       │   │   │   ├── lapi.c, lvm.c, ldo.c, lgc.c...
 │       │   │   │   └── (todos los módulos C del intérprete)
-│       │   │   └── rust_core/           # Crate de Rust para análisis seguro de memoria
+│       │   │   └── rust_core/           # Crate de Rust y C ABI para análisis seguro de memoria y ELF
 │       │   │       ├── Cargo.toml       # Definición del paquete Rust (cdylib/staticlib)
-│       │   │       └── src/lib.rs       # Rutinas Rust exportadas con #[no_mangle]
+│       │   │       ├── src/lib.rs       # Rutinas Rust exportadas con #[no_mangle]
+│       │   │       └── rust_core_abi.c  # Capa C ABI que implementa Goblin & Capstone para ELF y ASM
 │       │   ├── java/com/example/
 │       │   │   ├── MainActivity.kt      # Actividad principal con configuración de rutas Compose
 │       │   │   ├── data/
-│       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML y métodos DEX
+│       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML, DEX y ELF
 │       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali con baksmali 2.5.2 e indexación de clases DEX
-│       │   │   │   └── DexToJavaTranslator.kt     # Traductor y reconstructor de bytecode Dalvik a código Java
+│       │   │   │   ├── DexToJavaTranslator.kt     # Traductor y reconstructor de bytecode Dalvik a código Java
+│       │   │   │   └── NativeElfDisassembler.kt   # Parseo ELF con Goblin y desensamblado ASM con Capstone
 │       │   │   ├── model/
 │       │   │   │   ├── ApkFileItem.kt        # Entidad de archivo extraído (tamaño, tipo, extensiones)
 │       │   │   │   ├── ExtractedProject.kt   # Metadata de sesiones y proyectos guardados en caché
@@ -41,8 +43,9 @@ apk-extractor/
 │       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas
 │       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión
 │       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK
-│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, desensamblador Smali/Java para DEX y editor con persistencia
+│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, desensamblador Smali/Java para DEX, ELF (.so) con Goblin/Capstone y editor
 │       │   │   │   │   └── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal
+
 │       │   │   │   └── theme/
 │       │   │   │       ├── Color.kt               # Paleta ciberpunk/terminal (Slate, Cyan, Mint, Amber)
 │       │   │   │       ├── Theme.kt               # Tema Material 3 oscuro

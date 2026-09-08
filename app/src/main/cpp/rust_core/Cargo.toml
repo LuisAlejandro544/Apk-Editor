@@ -7,4 +7,6 @@ edition = "2021"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-# Dependencies for future cryptographic / binary DEX analysis
+goblin = "0.8"
+capstone = "0.12"
+

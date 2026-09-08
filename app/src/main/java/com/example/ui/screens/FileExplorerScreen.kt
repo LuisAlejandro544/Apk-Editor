@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.IntegrationInstructions
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
@@ -393,6 +394,7 @@ fun FileListItem(
     item.category == FileCategory.DEX_BYTECODE -> Icons.Default.Terminal
     item.category == FileCategory.RESOURCES_ARSC -> Icons.Default.Settings
     item.category == FileCategory.IMAGE -> Icons.Default.Image
+    item.category == FileCategory.AUDIO -> Icons.Default.MusicNote
     item.category == FileCategory.CODE_OR_SCRIPT -> Icons.Default.Code
     else -> Icons.Default.Description
   }

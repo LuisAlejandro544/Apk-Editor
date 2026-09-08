@@ -301,7 +301,8 @@ class ApkExtractorRepository(private val context: Context) {
       lower == "resources.arsc" -> FileCategory.RESOURCES_ARSC
       lower.endsWith(".so") -> FileCategory.NATIVE_LIBRARY
       lower.endsWith(".xml") -> FileCategory.COMPILED_RES
-      lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".webp") || lower.endsWith(".gif") -> FileCategory.IMAGE
+      lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".webp") || lower.endsWith(".gif") || lower.endsWith(".svg") || lower.endsWith(".ico") || lower.endsWith(".bmp") -> FileCategory.IMAGE
+      lower.endsWith(".mp3") || lower.endsWith(".ogg") || lower.endsWith(".wav") || lower.endsWith(".aac") || lower.endsWith(".m4a") || lower.endsWith(".flac") || lower.endsWith(".opus") || lower.endsWith(".mid") || lower.endsWith(".midi") -> FileCategory.AUDIO
       lower.endsWith(".json") || lower.endsWith(".txt") || lower.endsWith(".properties") || lower.endsWith(".js") -> FileCategory.CODE_OR_SCRIPT
       lower.startsWith("cert.") || lower.startsWith("manifest.mf") || lower.endsWith(".rsa") || lower.endsWith(".dsa") -> FileCategory.SIGNATURE_META
       else -> FileCategory.OTHER
@@ -697,4 +698,17 @@ class ApkExtractorRepository(private val context: Context) {
       )
     }
   }.flowOn(Dispatchers.IO)
+
+  private val elfDisassembler = NativeElfDisassembler()
+
+  fun getElfHeader(filePath: String): String = elfDisassembler.parseHeader(filePath)
+
+  fun getElfSymbols(filePath: String): Pair<List<ElfSymbolItem>, String> = elfDisassembler.parseSymbols(filePath)
+
+  fun getElfDependencies(filePath: String): Pair<List<String>, String> = elfDisassembler.parseDependencies(filePath)
+
+  fun disassembleElf(filePath: String, maxInstructions: Int = 120): String = elfDisassembler.disassemble(filePath, maxInstructions)
+
+  fun extractElfStrings(filePath: String, minLen: Int = 4): String = elfDisassembler.extractStrings(filePath, minLen)
 }
+

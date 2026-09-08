@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import com.example.data.DexClassItem
+import com.example.data.ElfSymbolItem
+import com.example.data.SoViewMode
 import com.example.util.AppDispatchers
 import java.io.File
 
@@ -39,12 +41,23 @@ data class FileDetailState(
   val dexClasses: List<DexClassItem> = emptyList(),
   val selectedDexClass: DexClassItem? = null,
   val dexViewMode: DexViewMode = DexViewMode.SMALI,
-  val isDexDecompiling: Boolean = false
+  val isDexDecompiling: Boolean = false,
+  // Campos especializados para ELF (.so) Goblin & Capstone
+  val isSo: Boolean = false,
+  val soViewMode: SoViewMode = SoViewMode.HEADER,
+  val soSymbols: List<ElfSymbolItem> = emptyList(),
+  val selectedSoSymbol: ElfSymbolItem? = null,
+  val soDependencies: List<String> = emptyList(),
+  val isSoAnalyzing: Boolean = false,
+  // Campos especializados para Multimedia (Coil & Media3)
+  val isImage: Boolean = false,
+  val isAudio: Boolean = false
 )
 
 enum class DexViewMode {
   SMALI, JAVA
 }
+
 
 class ApkViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -166,7 +179,15 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
       }
 
       val size = targetFile.length()
-      val isDexFile = targetFile.name.endsWith(".dex", ignoreCase = true)
+      val lowerName = targetFile.name.lowercase()
+      val isDexFile = lowerName.endsWith(".dex")
+      val isSoFile = lowerName.endsWith(".so")
+      val isImageFile = lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") ||
+        lowerName.endsWith(".webp") || lowerName.endsWith(".gif") || lowerName.endsWith(".svg") ||
+        lowerName.endsWith(".ico") || lowerName.endsWith(".bmp")
+      val isAudioFile = lowerName.endsWith(".mp3") || lowerName.endsWith(".ogg") || lowerName.endsWith(".wav") ||
+        lowerName.endsWith(".aac") || lowerName.endsWith(".m4a") || lowerName.endsWith(".flac") ||
+        lowerName.endsWith(".opus") || lowerName.endsWith(".mid") || lowerName.endsWith(".midi")
 
       // Ejecutar operaciones en paralelo en hilos secundarios dinámicos para eliminar el lag al abrir archivos
       val sha256Deferred = async(AppDispatchers.ComputeDispatcher) {
@@ -207,9 +228,42 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
           isDex = true,
           dexClasses = classes,
           selectedDexClass = initialClass,
-          dexViewMode = DexViewMode.SMALI
+          dexViewMode = DexViewMode.SMALI,
+          isSo = false
+        )
+      } else if (isSoFile) {
+        // En archivos ELF (.so): parsear cabecera, símbolos y dependencias con Goblin en Rust Core
+        val elfContentDeferred = async(AppDispatchers.ComputeDispatcher) {
+          val headerText = repository.getElfHeader(targetFile.absolutePath)
+          val (symbols, _) = repository.getElfSymbols(targetFile.absolutePath)
+          val (deps, _) = repository.getElfDependencies(targetFile.absolutePath)
+          Triple(headerText, symbols, deps)
+        }
+
+        val sha256 = sha256Deferred.await()
+        val hexDump = hexDumpDeferred.await()
+        val (headerText, symbols, deps) = elfContentDeferred.await()
+
+        _fileDetail.value = FileDetailState(
+          isLoading = false,
+          fileName = targetFile.name,
+          relativePath = relativePath,
+          absolutePath = targetFile.absolutePath,
+          sizeBytes = size,
+          sha256 = sha256,
+          textContent = headerText,
+          hexDump = hexDump,
+          isEditable = false,
+          isAxmlDecoded = false,
+          isDex = false,
+          isSo = true,
+          soViewMode = SoViewMode.HEADER,
+          soSymbols = symbols,
+          selectedSoSymbol = symbols.firstOrNull(),
+          soDependencies = deps
         )
       } else {
+
         val textPreviewDeferred = async(AppDispatchers.FastIODispatcher) {
           repository.readFileContent(targetFile.absolutePath)
         }
@@ -221,7 +275,13 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
         val isBinaryPlaceholder = textPreview.startsWith("Este archivo contiene datos binarios") || textPreview == "[Archivo vacío]"
         val isXml = targetFile.name.endsWith(".xml", ignoreCase = true)
         val isAxml = isXml && (textPreview.contains("<manifest") || textPreview.contains("<?xml") || textPreview.contains("<"))
-        val isEditable = !isBinaryPlaceholder && textPreview.isNotBlank() && !targetFile.name.endsWith(".so")
+        val isEditable = !isBinaryPlaceholder && textPreview.isNotBlank() && !targetFile.name.endsWith(".so") && !isImageFile && !isAudioFile
+
+        val displayContent = when {
+          isImageFile -> "Activo de imagen (${com.example.model.formatBytes(size)})\nRenderizado con Coil (soporta PNG, JPG, WebP, GIF, SVG e ICO)"
+          isAudioFile -> "Activo de audio (${com.example.model.formatBytes(size)})\nReproductor multimedia AndroidX Media3 ExoPlayer"
+          else -> textPreview
+        }
 
         _fileDetail.value = FileDetailState(
           isLoading = false,
@@ -230,11 +290,14 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
           absolutePath = targetFile.absolutePath,
           sizeBytes = size,
           sha256 = sha256,
-          textContent = textPreview,
+          textContent = displayContent,
           hexDump = hexDump,
           isEditable = isEditable,
           isAxmlDecoded = isAxml,
-          isDex = false
+          isDex = false,
+          isSo = false,
+          isImage = isImageFile,
+          isAudio = isAudioFile
         )
       }
     }
@@ -283,7 +346,59 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
+  fun switchSoViewMode(mode: SoViewMode) {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (!current.isSo || current.soViewMode == mode) return@launch
+
+      _fileDetail.value = current.copy(isSoAnalyzing = true, soViewMode = mode)
+      val content = withContext(AppDispatchers.ComputeDispatcher) {
+        when (mode) {
+          SoViewMode.HEADER -> repository.getElfHeader(current.absolutePath)
+          SoViewMode.SYMBOLS -> repository.getElfSymbols(current.absolutePath).second
+          SoViewMode.DEPENDENCIES -> repository.getElfDependencies(current.absolutePath).second
+          SoViewMode.DISASSEMBLY -> repository.disassembleElf(current.absolutePath)
+          SoViewMode.STRINGS -> repository.extractElfStrings(current.absolutePath)
+        }
+      }
+      _fileDetail.value = _fileDetail.value.copy(
+        isSoAnalyzing = false,
+        textContent = content
+      )
+    }
+  }
+
+  fun switchSoSymbol(symbol: ElfSymbolItem) {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (!current.isSo) return@launch
+
+      _fileDetail.value = current.copy(
+        isSoAnalyzing = true,
+        selectedSoSymbol = symbol,
+        soViewMode = SoViewMode.DISASSEMBLY
+      )
+      val content = withContext(AppDispatchers.ComputeDispatcher) {
+        val disasm = repository.disassembleElf(current.absolutePath)
+        """
+          ====================================================
+             SÍMBOLO SELECCIONADO: ${symbol.name}
+             Tipo: ${if (symbol.isJni) "Función JNI Nativa" else if (symbol.isExport) "Exportado" else "Importado"}
+             Motor: Capstone Disassembler & Goblin
+          ====================================================
+
+          $disasm
+        """.trimIndent()
+      }
+      _fileDetail.value = _fileDetail.value.copy(
+        isSoAnalyzing = false,
+        textContent = content
+      )
+    }
+  }
+
   fun saveFileContent(projectId: String, relativePath: String, newContent: String, onComplete: (Boolean) -> Unit = {}) {
+
     viewModelScope.launch {
       val currentState = _fileDetail.value
       _fileDetail.value = currentState.copy(isSaving = true)

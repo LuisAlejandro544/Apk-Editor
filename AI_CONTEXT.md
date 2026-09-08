@@ -20,16 +20,23 @@ Construir una suite completa de extracción, inspección, auditoría, desensambl
    - Evitar modales o diálogos emergentes bloqueantes sobrecargados. Las pantallas principales son destinos completos de navegación con soporte natural para el botón 'Atrás' del sistema Android.
 3. **Pila Tecnológica Multilenguaje**:
    - **Kotlin + Jetpack Compose**: Toda la capa de presentación y orquestación.
-   - **C (C11)**: Integrado en el NDK para rutinas de enlace JNI.
+   - **C (C11)**: Integrado en el NDK para rutinas de enlace JNI y liberación segura de memoria (`rust_apk_free_string`).
    - **C++ (C++17)**: Procesamiento de estructuras binarias.
    - **Lua (C puro 5.4.7 oficial)**: Compilado nativamente en C en `app/src/main/cpp/lua/`, sin wrappers innecesarios ni código simulado.
-   - **Rust**: Crate ubicado en `app/src/main/cpp/rust_core` para módulos criptográficos y verificación de integridad.
+   - **Rust / Goblin & Capstone**: Crate y ABI nativa en `app/src/main/cpp/rust_core` para módulos criptográficos, análisis de estructuras binarias ELF con Goblin y desensamblado de instrucciones ASM móviles con Capstone.
 4. **Desensamblado y Decompilación DEX (Smali & Java)**:
    - Integración oficial de `org.smali:dexlib2` y `org.smali:baksmali` (2.5.2) para desensamblado exacto a nivel de registros, instrucciones y etiquetas Dalvik.
    - Reconstrucción a Java estructural de alto nivel mediante `DexToJavaTranslator` para lectura amigable de clases, interfaces, campos, métodos y llamadas.
    - Hoja modal interactiva para explorar y filtrar clases compiladas en el DEX por paquete y nombre.
-5. **Decodificación y Edición de Recursos (AXML & Código)**:
+5. **Inspección y Desensamblado de Librerías Nativas ELF (.so)**:
+   - Análisis de arquitectura, entry point, endianness y protecciones de compilación (PIE, Stack Canaries, NX/DEP, RELRO) mediante el motor Goblin.
+   - Extracción de símbolos exportados y detección automática de funciones JNI (`Java_*`).
+   - Hoja modal interactiva para explorar símbolos con buscador instantáneo y filtro "⭐ Solo JNI".
+   - Desensamblado de código máquina nativo a nivel de mnemónicos ASM mediante Capstone.
+   - Identificación de dependencias compartidas (`DT_NEEDED`) y extracción de cadenas ASCII.
+6. **Decodificación y Edición de Recursos (AXML & Código)**:
    - Uso de `com.jaredrummler:apk-parser:1.0.2` para transformar `AndroidManifest.xml` binario en texto plano estructurado.
    - Entorno de edición táctil con numeración de líneas que permite modificar código (Smali, Java, XML, texto) y persistir las modificaciones en caché, manteniendo actualizados los hashes SHA-256 y metadatos sin corromper el almacenamiento.
-6. **Almacenamiento y Limpieza**:
+7. **Almacenamiento y Limpieza**:
    - El usuario cuenta con un monitor de almacenamiento dedicado (`CacheManagerScreen`) que calcula el peso de cada proyecto y permite la purga individual o total de los archivos temporales.
+

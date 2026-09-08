@@ -34,9 +34,10 @@ Este documento describe las fases de evolución técnica planificadas para conve
 ---
 
 ## Fase 4: Auditoría de Seguridad y Criptografía con Rust
+- [x] **Inspector y Desensamblador de Librerías Nativas ELF (.so) con Goblin y Capstone**: Verificación de protecciones de compilación (PIE, stack canaries, RELRO, NX), extracción de símbolos dinámicos y funciones JNI, inspección de dependencias compartidas (DT_NEEDED) y desensamblado ASM de instrucciones nativas.
 - [ ] **Verificación de Firmas APK**: Análisis de esquemas de firma v1 (JAR), v2 (APK Signature Scheme), v3 y v4.
 - [ ] **Detección de Trackers y Vulnerabilidades**: Escaneo de librerías de terceros (Google Ads, Facebook SDK, Unity, etc.).
-- [ ] **Inspector de Librerías Nativas ELF (.so)**: Verificación de protecciones de compilación (PIE, stack canaries, RELRO) mediante el motor Rust.
+
 
 ---
 

@@ -1,10 +1,9 @@
-feat: visor y desensamblador DEX en smali y java con persistencia y edición
+feat: visor multimedia con Coil y reproductor de audio con Media3 ExoPlayer
 
-- Integrar librerías de industria org.smali:dexlib2 y org.smali:baksmali (2.5.2) en Gradle
-- Crear DexDisassembler con soporte para indexar clases, generar resúmenes y desensamblar bytecode Dalvik exacto
-- Implementar DexToJavaTranslator para reconstruir clases, imports, campos, constructores y métodos en sintaxis Java limpia
-- Diseñar selector interactivo de clases DEX en FileDetailScreen con búsqueda y filtrado en tiempo real
-- Añadir selector de modo de vista entre 'Crudo (Smali)' y 'Java' en el editor de archivos
-- Habilitar modificación directa del código y guardado persistente en disco con recálculo dinámico de SHA-256 y tamaño
-- Agregar pruebas unitarias en DexViewerUnitTest para verificación de lectura y manejo controlado de errores
+- Añadir soporte para renderizado directo de imágenes con Coil Compose (io.coil-kt:coil-compose, coil-gif y coil-svg)
+- Implementar visor interactivo de imágenes (ImageViewerView) con soporte para PNG, JPG, WebP, GIF animado y SVG, incluyendo zoom multitáctil (pinch-to-zoom), desplazamiento (pan) e inspección de dimensiones
+- Integrar reproductor de audio nativo con AndroidX Media3 (androidx.media3:media3-exoplayer)
+- Implementar interfaz de reproductor de audio táctil (AudioPlayerView) para MP3, OGG, WAV, AAC, M4A, FLAC con controles Play/Pause, barra de progreso (seek slider) y gestión de ciclo de vida seguro
+- Clasificar extensiones multimedia en ApkModel y ApkExtractorRepository asignando la categoría FileCategory.AUDIO
+- Integrar visor y desensamblador de librerías nativas ELF (.so) con Goblin y Capstone
 - Actualizar documentación técnica (README.md, ROADMAP.md, STRUCTURE.md, AI_CONTEXT.md)

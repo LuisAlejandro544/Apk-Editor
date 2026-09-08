@@ -72,6 +72,7 @@ import com.example.ui.theme.SlateNavy
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import androidx.compose.material.icons.filled.Speed
 import com.example.viewmodel.ApkViewModel
 
 @Composable
@@ -81,7 +82,8 @@ fun HomeScreen(
   onNavigateToInstalledApps: () -> Unit,
   onNavigateToExplorer: (projectId: String) -> Unit,
   onNavigateToCacheManager: () -> Unit,
-  onNavigateToSettings: () -> Unit
+  onNavigateToSettings: () -> Unit,
+  onNavigateToThreadCpuProfiler: () -> Unit = {}
 ) {
   val projects by viewModel.projects.collectAsState()
   val storageInfo by viewModel.storageInfo.collectAsState()
@@ -162,6 +164,23 @@ fun HomeScreen(
           }
 
           Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+              onClick = onNavigateToThreadCpuProfiler,
+              modifier = Modifier
+                .testTag("thread_profiler_button")
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(SlateCard)
+            ) {
+              Icon(
+                imageVector = Icons.Default.Speed,
+                contentDescription = "Monitor de CPU e Hilos",
+                tint = CyanGlow
+              )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
             IconButton(
               onClick = onNavigateToSettings,
               modifier = Modifier

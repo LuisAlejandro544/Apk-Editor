@@ -63,9 +63,14 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.viewmodel.ApkViewModel
 
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Speed
+import com.pluto.Pluto
+
 @Composable
 fun SettingsScreen(
   viewModel: ApkViewModel,
+  onNavigateToThreadCpuProfiler: () -> Unit = {},
   onNavigateBack: () -> Unit
 ) {
   val currentThemeMode by viewModel.themeMode.collectAsState()
@@ -280,6 +285,130 @@ fun SettingsScreen(
               StatusItem(label = "Versión Android", value = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
               StatusItem(label = "Modo Insets", value = "Edge-to-Edge")
               StatusItem(label = "Táctil Móvil", value = "Activo")
+            }
+          }
+        }
+      }
+
+      // Sección: Herramientas de Depuración y Diagnóstico (Pluto, DoKit, LeakCanary)
+      item {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.BugReport,
+            contentDescription = null,
+            tint = AmberAccent,
+            modifier = Modifier.size(20.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Depuración y Auditoría de Sistema",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+          )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+          text = "Inspección de hilos, estrés de procesador, métricas en vivo y detección de fugas.",
+          style = MaterialTheme.typography.bodySmall,
+          color = TextSecondary
+        )
+      }
+
+      item {
+        Card(
+          colors = CardDefaults.cardColors(containerColor = SlateCard),
+          border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(SlateCardBorder)),
+          shape = RoundedCornerShape(16.dp),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(16.dp)) {
+            // Opción para abrir el Monitor de Hilos y Estrés CPU
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onNavigateToThreadCpuProfiler() }
+                .background(SlateNavy.copy(alpha = 0.5f))
+                .border(1.dp, CyanGlow.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                .padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Box(
+                modifier = Modifier
+                  .size(40.dp)
+                  .clip(CircleShape)
+                  .background(CyanPrimary.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Speed,
+                  contentDescription = null,
+                  tint = CyanPrimary,
+                  modifier = Modifier.size(22.dp)
+                )
+              }
+              Spacer(modifier = Modifier.width(12.dp))
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Monitor de Hilos y Estrés CPU",
+                  style = MaterialTheme.typography.bodyMedium,
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Ver hilo principal, hilos de tareas y saturación",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = TextSecondary
+                )
+              }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botón para abrir Pluto directamente
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                  try {
+                    Pluto.open()
+                  } catch (_: Throwable) {}
+                }
+                .background(SlateDark)
+                .border(1.dp, SlateCardBorder, RoundedCornerShape(12.dp))
+                .padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Box(
+                modifier = Modifier
+                  .size(40.dp)
+                  .clip(CircleShape)
+                  .background(AmberAccent.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.BugReport,
+                  contentDescription = null,
+                  tint = AmberAccent,
+                  modifier = Modifier.size(22.dp)
+                )
+              }
+              Spacer(modifier = Modifier.width(12.dp))
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = "Abrir Suite Pluto",
+                  style = MaterialTheme.typography.bodyMedium,
+                  fontWeight = FontWeight.Bold,
+                  color = TextPrimary
+                )
+                Text(
+                  text = "Inspector SharedPreferences, logs y excepciones",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = TextSecondary
+                )
+              }
             }
           }
         }

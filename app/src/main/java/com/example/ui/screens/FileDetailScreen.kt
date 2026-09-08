@@ -49,6 +49,16 @@ import com.example.ui.components.AudioPlayerView
 import com.example.ui.components.ImageViewerView
 import com.example.ui.components.ArscViewerContent
 import com.example.ui.components.BinaryDataViewerContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -96,6 +106,7 @@ import com.example.data.SoViewMode
 import com.example.model.formatBytes
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CodeBackground
+import com.example.ui.theme.CoralDanger
 import com.example.ui.theme.CyanGlow
 import com.example.ui.theme.CyanPrimary
 import com.example.ui.theme.MintSecondary
@@ -132,6 +143,29 @@ fun FileDetailScreen(
   var showSymbolPickerSheet by remember { mutableStateOf(false) }
   var symbolSearchFilter by remember { mutableStateOf("") }
   var jniOnlyFilter by remember { mutableStateOf(false) }
+
+  var showMappingDialog by remember { mutableStateOf(false) }
+  var mappingInputText by remember { mutableStateOf("") }
+
+  val mappingPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocument()
+  ) { uri ->
+    if (uri != null) {
+      try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+          val content = stream.bufferedReader().readText()
+          if (content.isNotBlank()) {
+            viewModel.loadMappingFile(content)
+            Toast.makeText(context, "Mapeo ProGuard cargado exitosamente", Toast.LENGTH_SHORT).show()
+          } else {
+            Toast.makeText(context, "El archivo seleccionado está vacío", Toast.LENGTH_SHORT).show()
+          }
+        }
+      } catch (e: Exception) {
+        Toast.makeText(context, "Error al leer mapping: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+      }
+    }
+  }
 
   LaunchedEffect(projectId, relativePath) {
     viewModel.loadFileDetail(projectId, relativePath)
@@ -550,6 +584,152 @@ fun FileDetailScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                           )
+                        }
+                      }
+
+                      Spacer(modifier = Modifier.height(6.dp))
+
+                      // Fila 1.2: Herramientas de Ofuscación, JADX Deobfuscator y ProGuard ReTrace (Pantalla táctil móvil)
+                      Row(
+                        modifier = Modifier
+                          .fillMaxWidth()
+                          .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                      ) {
+                        // 1. Selector de modo de nombres (Nombres Ofuscados originales vs Auto-Renombrado de JADX)
+                        Box(
+                          modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (state.isJadxDeobfuscationOn) AmberAccent.copy(alpha = 0.2f) else SlateCard)
+                            .border(
+                              1.dp,
+                              if (state.isJadxDeobfuscationOn) AmberAccent else SlateCardBorder,
+                              RoundedCornerShape(6.dp)
+                            )
+                            .clickable { viewModel.toggleJadxDeobfuscation() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                              imageVector = if (state.isJadxDeobfuscationOn) Icons.Default.AutoFixHigh else Icons.Default.Lock,
+                              contentDescription = null,
+                              tint = if (state.isJadxDeobfuscationOn) AmberAccent else TextSecondary,
+                              modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                              text = if (state.isJadxDeobfuscationOn) "🪄 Alias JADX" else "🔒 Nombres Ofuscados",
+                              color = if (state.isJadxDeobfuscationOn) AmberAccent else TextPrimary,
+                              fontSize = 11.sp,
+                              fontWeight = FontWeight.Bold
+                            )
+                          }
+                        }
+
+                        // 2. Modo Fallback (Tolerancia a ofuscación agresiva / anti-descompilación)
+                        Box(
+                          modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (state.isJadxFallbackMode) CoralDanger.copy(alpha = 0.2f) else SlateCard)
+                            .border(
+                              1.dp,
+                              if (state.isJadxFallbackMode) CoralDanger else SlateCardBorder,
+                              RoundedCornerShape(6.dp)
+                            )
+                            .clickable { viewModel.toggleJadxFallbackMode() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                              imageVector = Icons.Default.Shield,
+                              contentDescription = null,
+                              tint = if (state.isJadxFallbackMode) CoralDanger else TextSecondary,
+                              modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                              text = if (state.isJadxFallbackMode) "🛡️ Fallback ON" else "🛡️ Fallback",
+                              color = if (state.isJadxFallbackMode) CoralDanger else TextSecondary,
+                              fontSize = 11.sp,
+                              fontWeight = FontWeight.Bold
+                            )
+                          }
+                        }
+
+                        // 3. ProGuard ReTrace con mapping.txt
+                        if (state.mappingFileContent == null) {
+                          Box(
+                            modifier = Modifier
+                              .clip(RoundedCornerShape(6.dp))
+                              .background(MintSecondary.copy(alpha = 0.15f))
+                              .border(1.dp, MintSecondary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                              .clickable { showMappingDialog = true }
+                              .padding(horizontal = 8.dp, vertical = 5.dp)
+                          ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                              Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = null,
+                                tint = MintSecondary,
+                                modifier = Modifier.size(13.dp)
+                              )
+                              Spacer(modifier = Modifier.width(4.dp))
+                              Text(
+                                text = "📄 Cargar mapping.txt",
+                                color = MintSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                              )
+                            }
+                          }
+                        } else {
+                          // mapping.txt está activo
+                          Box(
+                            modifier = Modifier
+                              .clip(RoundedCornerShape(6.dp))
+                              .background(if (state.isRetraced) MintSecondary.copy(alpha = 0.25f) else SlateCard)
+                              .border(
+                                1.dp,
+                                if (state.isRetraced) MintSecondary else SlateCardBorder,
+                                RoundedCornerShape(6.dp)
+                              )
+                              .clickable { viewModel.toggleRetraceMapping() }
+                              .padding(horizontal = 8.dp, vertical = 5.dp)
+                          ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                              Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MintSecondary,
+                                modifier = Modifier.size(13.dp)
+                              )
+                              Spacer(modifier = Modifier.width(4.dp))
+                              Text(
+                                text = if (state.isRetraced) "✓ Retrace Activo" else "Ver Ofuscado",
+                                color = MintSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                              )
+                            }
+                          }
+
+                          // Quitar mapping
+                          Box(
+                            modifier = Modifier
+                              .clip(RoundedCornerShape(6.dp))
+                              .background(SlateCard)
+                              .border(1.dp, SlateCardBorder, RoundedCornerShape(6.dp))
+                              .clickable { viewModel.clearMappingFile() }
+                              .padding(horizontal = 6.dp, vertical = 5.dp)
+                          ) {
+                            Icon(
+                              imageVector = Icons.Default.Close,
+                              contentDescription = "Quitar mapping",
+                              tint = TextMuted,
+                              modifier = Modifier.size(13.dp)
+                            )
+                          }
                         }
                       }
 
@@ -1217,6 +1397,117 @@ fun FileDetailScreen(
         }
       }
     }
+  }
+
+  // Diálogo para cargar ProGuard mapping.txt (ReTrace)
+  if (showMappingDialog) {
+    AlertDialog(
+      onDismissRequest = { showMappingDialog = false },
+      containerColor = SlateNavy,
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Default.Description,
+            contentDescription = null,
+            tint = MintSecondary,
+            modifier = Modifier.size(20.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Cargar ProGuard mapping.txt",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+          )
+        }
+      },
+      text = {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+        ) {
+          Text(
+            text = "Permite a ProGuard ReTrace traducir los nombres ofuscados (a, b, c) de vuelta a sus clases, métodos y campos originales en Smali y Java.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary
+          )
+
+          Spacer(modifier = Modifier.height(14.dp))
+
+          // Opción 1: Seleccionar archivo desde el almacenamiento del móvil
+          Button(
+            onClick = {
+              showMappingDialog = false
+              mappingPickerLauncher.launch(arrayOf("text/plain", "*/*"))
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = MintSecondary),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Icon(
+              imageVector = Icons.Default.FolderOpen,
+              contentDescription = null,
+              tint = SlateDark,
+              modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Seleccionar archivo .txt", color = SlateDark, fontWeight = FontWeight.Bold)
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          Text(
+            text = "O pega el texto del mapeo aquí:",
+            style = MaterialTheme.typography.labelSmall,
+            color = TextMuted
+          )
+
+          Spacer(modifier = Modifier.height(6.dp))
+
+          OutlinedTextField(
+            value = mappingInputText,
+            onValueChange = { mappingInputText = it },
+            placeholder = { Text("com.example.App -> a:\n    int x -> a\n    void test() -> b", color = TextMuted, fontSize = 12.sp) },
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(120.dp),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+              focusedBorderColor = MintSecondary,
+              unfocusedBorderColor = SlateCardBorder,
+              focusedTextColor = TextPrimary,
+              unfocusedTextColor = TextPrimary
+            )
+          )
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            if (mappingInputText.isNotBlank()) {
+              viewModel.loadMappingFile(mappingInputText)
+              Toast.makeText(context, "Mapeo cargado y aplicado", Toast.LENGTH_SHORT).show()
+              showMappingDialog = false
+            } else {
+              Toast.makeText(context, "Ingresa el texto o selecciona un archivo", Toast.LENGTH_SHORT).show()
+            }
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary),
+          shape = RoundedCornerShape(8.dp)
+        ) {
+          Text("Aplicar Mapeo", color = SlateDark, fontWeight = FontWeight.Bold)
+        }
+      },
+      dismissButton = {
+        OutlinedButton(
+          onClick = { showMappingDialog = false },
+          shape = RoundedCornerShape(8.dp)
+        ) {
+          Text("Cancelar", color = TextSecondary)
+        }
+      }
+    )
   }
 }
 

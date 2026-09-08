@@ -101,6 +101,17 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
+  // Mobile debugging & diagnostic suite (LeakCanary, Pluto, DoraemonKit)
+  implementation(libs.leakcanary.android)
+  implementation(libs.pluto)
+  implementation(libs.pluto.exceptions)
+  implementation(libs.pluto.logger)
+  implementation(libs.pluto.preferences)
+  implementation(libs.dokitx) {
+    exclude(group = "com.android.volley", module = "volley")
+  }
+  implementation(libs.volley)
+
   implementation(libs.jadx.core)
   implementation(libs.proguard.retrace) {
     exclude(group = "com.guardsquare", module = "proguard-base")

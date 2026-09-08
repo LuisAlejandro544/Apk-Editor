@@ -74,6 +74,9 @@ fun ApkExtractorApp(viewModel: ApkViewModel) {
         },
         onNavigateToSettings = {
           navController.navigate(Screen.Settings.route)
+        },
+        onNavigateToThreadCpuProfiler = {
+          navController.navigate(Screen.ThreadCpuProfiler.route)
         }
       )
     }
@@ -166,6 +169,18 @@ fun ApkExtractorApp(viewModel: ApkViewModel) {
 
     composable(Screen.Settings.route) {
       SettingsScreen(
+        viewModel = viewModel,
+        onNavigateToThreadCpuProfiler = {
+          navController.navigate(Screen.ThreadCpuProfiler.route)
+        },
+        onNavigateBack = {
+          navController.popBackStack()
+        }
+      )
+    }
+
+    composable(Screen.ThreadCpuProfiler.route) {
+      com.example.ui.screens.ThreadCpuProfilerScreen(
         viewModel = viewModel,
         onNavigateBack = {
           navController.popBackStack()

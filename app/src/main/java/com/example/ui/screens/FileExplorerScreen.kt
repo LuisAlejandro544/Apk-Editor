@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.IntegrationInstructions
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
@@ -161,6 +162,20 @@ fun FileExplorerScreen(
               text = "${project?.fileCount ?: 0} archivos en caché",
               style = MaterialTheme.typography.bodySmall,
               color = CyanGlow
+            )
+          }
+
+          IconButton(
+            onClick = { viewModel.loadProjectFolder(projectId, subPath, forceReload = true) },
+            modifier = Modifier
+              .size(40.dp)
+              .clip(CircleShape)
+              .background(SlateCard)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Refresh,
+              contentDescription = "Recargar carpeta",
+              tint = CyanGlow
             )
           }
         }

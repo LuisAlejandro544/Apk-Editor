@@ -25,8 +25,12 @@ import com.example.data.SoViewMode
 import com.example.data.ArscParseResult
 import com.example.data.ArscResourceItem
 import com.example.data.BinaryDataResult
+import com.example.data.ThreadCpuProfilerService
+import com.example.model.CpuStressMetrics
+import com.example.model.ThreadInfoItem
 import com.example.util.AppDispatchers
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 data class FileDetailState(
   val isLoading: Boolean = true,
@@ -47,6 +51,11 @@ data class FileDetailState(
   val selectedDexClass: DexClassItem? = null,
   val dexViewMode: DexViewMode = DexViewMode.SMALI,
   val isDexDecompiling: Boolean = false,
+  val isJadxDeobfuscationOn: Boolean = false,
+  val isJadxFallbackMode: Boolean = false,
+  val mappingFileContent: String? = null,
+  val isRetraced: Boolean = false,
+  val rawObfuscatedCode: String = "",
   // Campos especializados para ELF (.so) Goblin & Capstone
   val isSo: Boolean = false,
   val soViewMode: SoViewMode = SoViewMode.HEADER,
@@ -132,11 +141,53 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
   private val _isInstalledAppsLoading = MutableStateFlow(false)
   val isInstalledAppsLoading: StateFlow<Boolean> = _isInstalledAppsLoading.asStateFlow()
 
+  // Caché en memoria para carpetas y proyectos para evitar recargas constantes y parpadeos en navegación
+  private val folderCache = ConcurrentHashMap<String, List<ExtractedFileItem>>()
+  private val projectCache = ConcurrentHashMap<String, ApkProject>()
+
+  // Servicio de auditoría y diagnóstico de CPU y actividad de hilos (Main vs Background)
+  private val threadCpuProfilerService = ThreadCpuProfilerService()
+  private val _cpuMetrics = MutableStateFlow(CpuStressMetrics())
+  val cpuMetrics: StateFlow<CpuStressMetrics> = _cpuMetrics.asStateFlow()
+
+  private val _threadList = MutableStateFlow<List<ThreadInfoItem>>(emptyList())
+  val threadList: StateFlow<List<ThreadInfoItem>> = _threadList.asStateFlow()
+
+  private var profilerJob: Job? = null
+
   private var extractionJob: Job? = null
 
   init {
     refreshProjectsAndStorage()
     loadInstalledApps()
+  }
+
+  fun startProfilerMonitoring() {
+    profilerJob?.cancel()
+    profilerJob = viewModelScope.launch(AppDispatchers.ComputeDispatcher) {
+      while (true) {
+        _cpuMetrics.value = threadCpuProfilerService.sampleCpuAndMemory()
+        _threadList.value = threadCpuProfilerService.getActiveThreads()
+        kotlinx.coroutines.delay(1200L)
+      }
+    }
+  }
+
+  fun stopProfilerMonitoring() {
+    profilerJob?.cancel()
+    profilerJob = null
+  }
+
+  fun refreshProfilerSnapshot() {
+    viewModelScope.launch(AppDispatchers.ComputeDispatcher) {
+      _cpuMetrics.value = threadCpuProfilerService.sampleCpuAndMemory()
+      _threadList.value = threadCpuProfilerService.getActiveThreads()
+    }
+  }
+
+  fun invalidateFolderCache() {
+    folderCache.clear()
+    projectCache.clear()
   }
 
   fun loadInstalledApps() {
@@ -193,11 +244,39 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
     refreshProjectsAndStorage()
   }
 
-  fun loadProjectFolder(projectId: String, subPath: String) {
+  fun loadProjectFolder(projectId: String, subPath: String, forceReload: Boolean = false) {
+    val cacheKey = "$projectId::$subPath"
+    val cachedItems = folderCache[cacheKey]
+    val cachedProject = projectCache[projectId]
+
+    // Si los contenidos de la carpeta ya están en memoria y no se fuerza la recarga,
+    // se sirven instantáneamente evitando el parpadeo del indicador de carga y el reescaneo del disco
+    if (!forceReload && cachedItems != null && cachedProject != null) {
+      _currentProject.value = cachedProject
+      _currentFolderItems.value = cachedItems
+      _isFolderLoading.value = false
+      return
+    }
+
     viewModelScope.launch {
-      _isFolderLoading.value = true
-      _currentProject.value = repository.getProjectById(projectId)
-      _currentFolderItems.value = repository.getDirectoryContents(projectId, subPath)
+      if (cachedItems != null) {
+        _currentFolderItems.value = cachedItems
+      } else {
+        _isFolderLoading.value = true
+      }
+
+      val project = withContext(AppDispatchers.FastIODispatcher) {
+        cachedProject ?: repository.getProjectById(projectId)?.also {
+          projectCache[projectId] = it
+        }
+      }
+      _currentProject.value = project
+
+      val items = withContext(AppDispatchers.FastIODispatcher) {
+        repository.getDirectoryContents(projectId, subPath)
+      }
+      folderCache[cacheKey] = items
+      _currentFolderItems.value = items
       _isFolderLoading.value = false
     }
   }
@@ -417,12 +496,25 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
       val content = withContext(AppDispatchers.ComputeDispatcher) {
         when (current.dexViewMode) {
           DexViewMode.SMALI -> repository.disassembleDexToSmali(current.absolutePath, clazz.typeDescriptor)
-          DexViewMode.JAVA -> repository.decompileDexToJava(current.absolutePath, clazz.typeDescriptor)
+          DexViewMode.JAVA -> repository.decompileDexToJava(
+            filePath = current.absolutePath,
+            classDescriptor = clazz.typeDescriptor,
+            deobfuscate = current.isJadxDeobfuscationOn,
+            fallbackMode = current.isJadxFallbackMode
+          )
         }
       }
+
+      val finalContent = if (current.mappingFileContent != null && current.isRetraced) {
+        repository.retraceCode(content, current.mappingFileContent)
+      } else {
+        content
+      }
+
       _fileDetail.value = _fileDetail.value.copy(
         isDexDecompiling = false,
-        textContent = content
+        textContent = finalContent,
+        rawObfuscatedCode = content
       )
     }
   }
@@ -438,17 +530,136 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
         when (mode) {
           DexViewMode.SMALI -> repository.disassembleDexToSmali(current.absolutePath, descriptor)
           DexViewMode.JAVA -> if (descriptor != null) {
-            repository.decompileDexToJava(current.absolutePath, descriptor)
+            repository.decompileDexToJava(
+              filePath = current.absolutePath,
+              classDescriptor = descriptor,
+              deobfuscate = current.isJadxDeobfuscationOn,
+              fallbackMode = current.isJadxFallbackMode
+            )
           } else {
             "// Selecciona una clase para ver el código Java descompilado"
           }
         }
       }
+
+      val finalContent = if (current.mappingFileContent != null && current.isRetraced) {
+        repository.retraceCode(content, current.mappingFileContent)
+      } else {
+        content
+      }
+
       _fileDetail.value = _fileDetail.value.copy(
         isDexDecompiling = false,
-        textContent = content
+        textContent = finalContent,
+        rawObfuscatedCode = content
       )
     }
+  }
+
+  fun toggleJadxDeobfuscation() {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (!current.isDex) return@launch
+      val newDeobf = !current.isJadxDeobfuscationOn
+      _fileDetail.value = current.copy(isJadxDeobfuscationOn = newDeobf, isDexDecompiling = true)
+      reloadDexCode(newDeobf = newDeobf, newFallback = current.isJadxFallbackMode)
+    }
+  }
+
+  fun toggleJadxFallbackMode() {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (!current.isDex) return@launch
+      val newFallback = !current.isJadxFallbackMode
+      _fileDetail.value = current.copy(isJadxFallbackMode = newFallback, isDexDecompiling = true)
+      reloadDexCode(newDeobf = current.isJadxDeobfuscationOn, newFallback = newFallback)
+    }
+  }
+
+  private suspend fun reloadDexCode(newDeobf: Boolean, newFallback: Boolean) {
+    val current = _fileDetail.value
+    val descriptor = current.selectedDexClass?.typeDescriptor
+    val content = withContext(AppDispatchers.ComputeDispatcher) {
+      when (current.dexViewMode) {
+        DexViewMode.SMALI -> repository.disassembleDexToSmali(current.absolutePath, descriptor)
+        DexViewMode.JAVA -> if (descriptor != null) {
+          repository.decompileDexToJava(
+            filePath = current.absolutePath,
+            classDescriptor = descriptor,
+            deobfuscate = newDeobf,
+            fallbackMode = newFallback
+          )
+        } else {
+          "// Selecciona una clase para ver el código Java descompilado"
+        }
+      }
+    }
+
+    val finalContent = if (current.mappingFileContent != null && current.isRetraced) {
+      repository.retraceCode(content, current.mappingFileContent)
+    } else {
+      content
+    }
+
+    _fileDetail.value = _fileDetail.value.copy(
+      isDexDecompiling = false,
+      textContent = finalContent,
+      rawObfuscatedCode = content
+    )
+  }
+
+  fun loadMappingFile(mappingContent: String) {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      if (mappingContent.isBlank()) return@launch
+      _fileDetail.value = current.copy(isDexDecompiling = true)
+      val original = if (current.rawObfuscatedCode.isNotBlank()) current.rawObfuscatedCode else current.textContent
+      val retraced = withContext(AppDispatchers.ComputeDispatcher) {
+        repository.retraceCode(original, mappingContent)
+      }
+      _fileDetail.value = _fileDetail.value.copy(
+        isDexDecompiling = false,
+        mappingFileContent = mappingContent,
+        rawObfuscatedCode = original,
+        textContent = retraced,
+        isRetraced = true
+      )
+    }
+  }
+
+  fun toggleRetraceMapping() {
+    viewModelScope.launch {
+      val current = _fileDetail.value
+      val mapping = current.mappingFileContent ?: return@launch
+      if (current.isRetraced) {
+        _fileDetail.value = current.copy(
+          textContent = current.rawObfuscatedCode.ifBlank { current.textContent },
+          isRetraced = false
+        )
+      } else {
+        _fileDetail.value = current.copy(isDexDecompiling = true)
+        val original = current.textContent
+        val retraced = withContext(AppDispatchers.ComputeDispatcher) {
+          repository.retraceCode(original, mapping)
+        }
+        _fileDetail.value = _fileDetail.value.copy(
+          isDexDecompiling = false,
+          rawObfuscatedCode = original,
+          textContent = retraced,
+          isRetraced = true
+        )
+      }
+    }
+  }
+
+  fun clearMappingFile() {
+    val current = _fileDetail.value
+    _fileDetail.value = current.copy(
+      mappingFileContent = null,
+      isRetraced = false,
+      textContent = if (current.isRetraced && current.rawObfuscatedCode.isNotBlank()) current.rawObfuscatedCode else current.textContent,
+      rawObfuscatedCode = ""
+    )
   }
 
   fun switchSoViewMode(mode: SoViewMode) {
@@ -567,6 +778,7 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
           binaryTextEditable = if (mode == BinaryEditMode.TEXT) content else newBinaryResult.textContent,
           textContent = if (mode == BinaryEditMode.HEX) content else newBinaryResult.textContent
         )
+        invalidateFolderCache()
         refreshProjectsAndStorage()
         onComplete(true, null)
       } else {
@@ -601,6 +813,7 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
           sha256 = newSha256,
           hexDump = newHex
         )
+        invalidateFolderCache()
         refreshProjectsAndStorage()
       } else {
         _fileDetail.value = currentState.copy(isSaving = false)
@@ -612,6 +825,7 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
   fun deleteProject(projectId: String, onDeleted: () -> Unit = {}) {
     viewModelScope.launch {
       repository.deleteProject(projectId)
+      invalidateFolderCache()
       refreshProjectsAndStorage()
       onDeleted()
     }
@@ -620,6 +834,7 @@ class ApkViewModel(application: Application) : AndroidViewModel(application) {
   fun clearAllCache(onCleared: () -> Unit = {}) {
     viewModelScope.launch {
       repository.clearAllWorkspaces()
+      invalidateFolderCache()
       refreshProjectsAndStorage()
       onCleared()
     }

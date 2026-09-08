@@ -5,63 +5,60 @@ Mapa detallado de la arquitectura de directorios, capas de responsabilidad y com
 ```
 apk-extractor/
 ├── app/
-│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias (JADX Core, ProGuard ReTrace, BouncyCastle, ARSCLib, smali, Media3, Coil, apk-parser, Tika, Zstd, LZ4, Brotli, Commons-Compress, Protobuf, MsgPack, CBOR, SQLite-JDBC)
+│   ├── build.gradle.kts                 # Configuración de Gradle, NDK y dependencias (Pluto, LeakCanary, DoraemonKit, Volley, JADX Core, BouncyCastle, ARSCLib, smali, Media3, Coil)
 │   └── src/
 │       ├── main/
-│       │   ├── AndroidManifest.xml      # Permisos del sistema (SAF, QUERY_ALL_PACKAGES) y Activities
+│       │   ├── AndroidManifest.xml      # Declaración de Application (ApkExtractorApplication), permisos (SYSTEM_ALERT_WINDOW, QUERY_ALL_PACKAGES) y Activities
 │       │   ├── cpp/                     # Módulos de código nativo (C, C++, Rust y Lua)
 │       │   │   ├── CMakeLists.txt       # Script de compilación CMake (C11 + C++17 + Lua C)
 │       │   │   ├── native_bridge.c      # Conector JNI en C que enlaza el runtime de Android con Lua y Rust
 │       │   │   ├── cpp_engine.cpp       # Motor C++ para parsing binario y análisis estructural
-│       │   │   ├── lua/                 # Código fuente oficial en C puro de Lua 5.4.7
-│       │   │   │   ├── lua.h / lauxlib.h / lualib.h
-│       │   │   │   ├── lapi.c, lvm.c, ldo.c, lgc.c...
-│       │   │   │   └── (todos los módulos C del intérprete)
-│       │   │   └── rust_core/           # Crate de Rust y C ABI para análisis seguro de memoria y ELF
-│       │   │       ├── Cargo.toml       # Definición del paquete Rust (cdylib/staticlib)
-│       │   │       ├── src/lib.rs       # Rutinas Rust exportadas con #[no_mangle]
-│       │   │       └── rust_core_abi.c  # Capa C ABI que implementa Goblin & Capstone para ELF y ASM
+│       │   │   ├── lua/                 # Intérprete oficial en C puro de Lua 5.4.7
+│       │   │   └── rust_core/           # Crate de Rust y C ABI para análisis ELF y ASM
 │       │   ├── java/com/example/
-│       │   │   ├── MainActivity.kt      # Actividad principal con configuración Edge-to-Edge, observador de tema y rutas Compose
+│       │   │   ├── ApkExtractorApplication.kt # Inicialización de suites de depuración móvil (Pluto, DoKit)
+│       │   │   ├── MainActivity.kt      # Actividad principal con registro de rutas Compose (incluyendo ThreadCpuProfiler)
 │       │   │   ├── data/
+│       │   │   │   ├── ThreadCpuProfilerService.kt # Medición de uso de CPU, frecuencia, memoria heap y mapeo de hilos en tiempo real
 │       │   │   │   ├── ApkExtractorRepository.kt  # Gestión I/O, streaming ZIP, decodificación AXML, DEX, ELF, ARSC y guardado binario
 │       │   │   │   ├── AppDispatchers.kt          # Despachadores de corrutinas optimizados (ComputeDispatcher y FastIODispatcher)
-│       │   │   │   ├── ArscParser.kt              # Parser de resources.arsc mediante io.github.reandroid:ARSCLib
-│       │   │   │   ├── BinaryDataParser.kt        # Analizador binario (.dat/.bin), cálculo de Entropía de Shannon, formateo Hex y extractor de cadenas
-│       │   │   │   ├── BouncyCastleCryptoService.kt # Suite criptográfica: análisis de certificados X.509, firmas APK (META-INF/*.RSA), huellas SHA-256/SHA-1/MD5 y decodificación ASN.1/PKCS7
-│       │   │   │   ├── DecompressionService.kt    # Motor unificado de descompresión streaming (Zstandard, LZ4, Brotli, Bzip2, XZ/LZMA, GZIP, Deflate)
-│       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali (baksmali 2.5.2) e indexador de clases Dalvik
-│       │   │   │   ├── DexToJavaTranslator.kt     # Traductor estructural auxiliar de bytecode a pseudocódigo Java
-│       │   │   │   ├── JadxDecompilerService.kt   # Servicio de descompilación Java estructural de alto nivel mediante jadx-core
-│       │   │   │   ├── NativeElfDisassembler.kt   # Parseo ELF con Goblin y desensamblado ASM con Capstone
-│       │   │   │   └── ProguardRetraceService.kt  # Desofuscador de stack traces y símbolos mediante ProGuard ReTrace (mapping.txt)
+│       │   │   │   ├── ArscParser.kt              # Parser de resources.arsc mediante ARSCLib
+│       │   │   │   ├── BinaryDataParser.kt        # Analizador binario, cálculo de Entropía y extractor de cadenas
+│       │   │   │   ├── BouncyCastleCryptoService.kt # Análisis de certificados X.509 y firmas APK en META-INF/
+│       │   │   │   ├── DecompressionService.kt    # Motor unificado de descompresión streaming (Zstandard, LZ4, Brotli, Bzip2, XZ, Deflate)
+│       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali (baksmali 2.5.2)
+│       │   │   │   ├── JadxDecompilerService.kt   # Descompilación Java estructural mediante jadx-core
+│       │   │   │   ├── NativeElfDisassembler.kt   # Parseo ELF y desensamblado ASM con Capstone
+│       │   │   │   └── ProguardRetraceService.kt  # Desofuscador con ProGuard ReTrace (mapping.txt)
 │       │   │   ├── model/
-│       │   │   │   ├── ApkModel.kt                # Modelos de datos: FileCategory (ARSC, DEX, ELF, AUDIO, IMAGE, BINARY_DATA), ApkProject, ExtractedFileItem, StorageInfo
-│       │   │   │   ├── AppSettings.kt             # Modelo de configuración: enum AppThemeMode (CYBER_DARK, MATERIAL_YOU)
-│       │   │   │   └── InstalledAppItem.kt        # Modelo y metadatos de apps instaladas leídas del dispositivo
+│       │   │   │   ├── ThreadCpuProfilerModel.kt  # Modelos de métricas de CPU, niveles de estrés y estado de hilos
+│       │   │   │   ├── ApkModel.kt                # Modelos de proyecto, categorías y archivos extraídos
+│       │   │   │   ├── AppSettings.kt             # Modelo de configuración de tema (Cyber Dark, Material You)
+│       │   │   │   └── InstalledAppItem.kt        # Metadatos de aplicaciones instaladas
 │       │   │   ├── nativebridge/
 │       │   │   │   └── NativeEngineBridge.kt      # Interfaz JNI que interactúa con libapk_native_engine.so
 │       │   │   ├── ui/
 │       │   │   │   ├── components/
-│       │   │   │   │   ├── ArscViewerContent.kt       # Visor táctil interactivo de recursos ARSC con filtros y buscador
-│       │   │   │   │   ├── BinaryDataViewerContent.kt # Visor y editor táctil de archivos .dat/.bin (Hex, Texto UTF-8, Inspector de Entropía y Strings)
-│       │   │   │   │   └── MediaPreviewComponents.kt  # Visores multimedia: reproductor de audio nativo ExoPlayer y visor de imágenes Coil con zoom
+│       │   │   │   │   ├── ArscViewerContent.kt       # Visor interactivo de recursos ARSC
+│       │   │   │   │   ├── BinaryDataViewerContent.kt # Editor y visor táctil hexadecimal/texto
+│       │   │   │   │   └── MediaPreviewComponents.kt  # Visor multimedia (ExoPlayer y Coil)
 │       │   │   │   ├── navigation/
-│       │   │   │   │   └── Screen.kt              # Definición de rutas y destinos de navegación Compose (Home, InstalledApps, Extraction, Explorer, Detail, Cache, Settings)
+│       │   │   │   │   └── Screen.kt              # Destinos Compose (Home, Explorer, ThreadCpuProfiler, Settings, etc.)
 │       │   │   │   ├── screens/
-│       │   │   │   │   ├── HomeScreen.kt          # Panel de inicio, selección SAF, estado y acceso a Configuración (con statusBarsPadding)
-│       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas del sistema/usuario (con insets seguros)
-│       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión streaming
-│       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK con categorización (con insets seguros)
-│       │   │   │   │   ├── FileDetailScreen.kt    # Visor integral: Smali, Java (JADX Core), ELF (.so), ARSC, Certificados BouncyCastle, editor y Hex Dump
-│       │   │   │   │   ├── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal (con insets seguros)
-│       │   │   │   │   └── SettingsScreen.kt      # Pantalla de Configuración con selector de tema (Material You vs Cyber Dark) e información Edge-to-Edge
+│       │   │   │   │   ├── ThreadCpuProfilerScreen.kt # Interfaz del monitor de hilos y estrés de CPU con acceso a Pluto
+│       │   │   │   │   ├── FileExplorerScreen.kt      # Explorador de archivos con caché persistente y botón de recarga forzada
+│       │   │   │   │   ├── HomeScreen.kt              # Panel de inicio con acceso rápido al monitor de rendimiento
+│       │   │   │   │   ├── SettingsScreen.kt          # Configuración con sección técnica de depuración (Pluto, DoKit, Profiler)
+│       │   │   │   │   ├── FileDetailScreen.kt        # Visor detallado (Smali, Java, ELF, ARSC, Hex)
+│       │   │   │   │   ├── InstalledAppsScreen.kt     # Lista y extractor de aplicaciones instaladas
+│       │   │   │   │   ├── ExtractionScreen.kt        # Progreso de extracción en streaming
+│       │   │   │   │   └── CacheManagerScreen.kt      # Gestor de memoria y purga de caché
 │       │   │   │   └── theme/
-│       │   │   │       ├── Color.kt               # Paleta ciberpunk/terminal (Slate, Cyan, Mint, Amber)
-│       │   │   │       ├── Theme.kt               # Tema Material 3 adaptativo con soporte para dynamicDarkColorScheme (Material You)
-│       │   │   │       └── Type.kt                # Tipografía con soporte monoespaciado
+│       │   │   │       ├── Color.kt               # Paleta cromática Cyber Dark (Slate, Cyan, Mint, Amber, Coral)
+│       │   │   │       ├── Theme.kt               # Soporte para temas Cyber Dark y Material You
+│       │   │   │       └── Type.kt                # Tipografía del sistema
 │       │   │   └── viewmodel/
-│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX (Smali/JADX), ARSC, ELF, AXML, BinaryData, Criptografía y persistencia de tema
-│       │   └── res/                               # Recursos gráficos, iconos adaptativos y strings
+│       │   │       └── ApkViewModel.kt            # Gestión de folderCache, projectCache, flujos StateFlow y profiler
+│       │   └── res/                               # Recursos gráficos, iconos y strings
 │       └── test/java/com/example/                 # Suites de pruebas unitarias
 ```

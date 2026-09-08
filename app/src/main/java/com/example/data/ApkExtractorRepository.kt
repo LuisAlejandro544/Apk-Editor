@@ -351,10 +351,35 @@ class ApkExtractorRepository(private val context: Context) {
     }
   }
 
-  suspend fun decompileDexToJava(filePath: String, classDescriptor: String): String = withContext(Dispatchers.IO) {
+  suspend fun decompileDexToJava(
+    filePath: String,
+    classDescriptor: String,
+    deobfuscate: Boolean = false,
+    fallbackMode: Boolean = false
+  ): String = withContext(Dispatchers.IO) {
     val file = File(filePath)
     if (!file.exists()) return@withContext "// Archivo DEX no encontrado"
+
+    // 1. Prioridad: Descompilador industrial JADX con soporte de AST completo y control de ofuscación
+    val jadxResult = JadxDecompilerService.decompileClass(
+      file = file,
+      classFullNameOrDescriptor = classDescriptor,
+      deobfuscate = deobfuscate,
+      fallbackMode = fallbackMode
+    )
+    if (jadxResult.isSuccess) {
+      val code = jadxResult.getOrNull()
+      if (!code.isNullOrBlank()) {
+        return@withContext code
+      }
+    }
+
+    // 2. Respaldo: Traductor Smali a Java estructurado si JADX encuentra una anomalía irrecuperable
     DexDisassembler.decompileToJava(file, classDescriptor)
+  }
+
+  suspend fun retraceCode(code: String, mappingContent: String): String = withContext(Dispatchers.IO) {
+    ProguardRetraceService.retrace(code, mappingContent, context.cacheDir)
   }
 
   suspend fun readFileContent(filePath: String, maxBytes: Int = 256 * 1024): String = withContext(Dispatchers.IO) {

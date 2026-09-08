@@ -1,33 +1,27 @@
-feat: motor de descompilación JADX Core, auditoría criptográfica con BouncyCastle, desofuscación ProGuard ReTrace y descompresión multi-algoritmo
+feat: integración de suite de depuración (Pluto, LeakCanary, DoraemonKit), monitor de hilos y estrés de CPU, y caché persistente de carpetas
 
-- Integrar servicio de descompilación Java de alto nivel con JADX Core (JadxDecompilerService):
-  * Adición de io.github.skylot:jadx-core para descompilar bytecode Dalvik (.dex) a código fuente Java real y estructurado directamente en el teléfono móvil.
-  * Configuración de JadxArgs con desofuscación heurística, saneamiento defensivo de identificadores no válidos y resolución transversal de dependencias de clases.
-  * Conmutador en FileDetailScreen para alternar dinámicamente entre desensamblado Smali (baksmali) y código Java recompilado por JADX con resaltado y selector de clases.
-  * Operaciones en segundo plano mediante ComputeDispatcher en ApkViewModel para evitar bloqueos del hilo principal de UI.
+- Integración de herramientas de depuración móvil en dispositivo (Zero-PC Debugging):
+  * Pluto SDK: Inspector en pantalla para SharedPreferences, excepciones no capturadas, logger y herramientas de depuración rápida.
+  * LeakCanary: Detección automática y notificación en vivo de fugas de memoria (Memory Leaks) en Android sin necesidad de conectar PC ni usar terminal.
+  * DoraemonKit (DoKit): Asistente flotante de diagnóstico móvil para rendimiento, inspección visual y análisis del entorno.
+  * Inicialización centralizada en ApkExtractorApplication con permisos de alerta de sistema (SYSTEM_ALERT_WINDOW).
 
-- Implementar suite criptográfica y análisis de certificados con BouncyCastle (BouncyCastleCryptoService):
-  * Adición de org.bouncycastle:bcprov-jdk18on y bcpkix-jdk18on para auditoría forense de firmas APK en el directorio META-INF/ (.RSA, .DSA, .EC, MANIFEST.MF, CERT.SF).
-  * Extracción de certificados X.509, sujeto (Subject), emisor (Issuer), número de serie, algoritmo de firma y períodos de vigencia.
-  * Cálculo de huellas digitales criptográficas (Fingerprints) en SHA-256, SHA-1 y MD5 con botones de copiado rápido al portapapeles.
-  * Soporte de hashes avanzados (SHA3-256, Keccak, RIPEMD-160) y decodificación ASN.1 / PKCS#7 SignedData.
+- Monitor de Hilos y Estrés de Procesador (ThreadCpuProfilerService, ThreadCpuProfilerModel, ThreadCpuProfilerScreen):
+  * Muestreo continuo del estrés del procesador (% de CPU consumido por el proceso, memoria heap utilizada vs máxima, núcleos lógicos y frecuencia).
+  * Clasificación automática de niveles de estrés de CPU (Bajo, Moderado, Alto, Crítico) con advertencias visuales de sobrecarga.
+  * Análisis en vivo del hilo principal (UI Thread): estado de ejecución, saturación y pila de llamadas (stack trace) con detección de trabajo bloqueante.
+  * Monitorización detallada de hilos secundarios y workers: identificación por nombre, estado (RUNNABLE, BLOCKED, WAITING, TIMED_WAITING), prioridad y stack traces completos expandibles.
+  * Selector de filtros de hilos (Todos, Solo Activos, Hilo Principal, Bloqueados) para auditoría reactiva de concurrencia.
+  * Acceso directo desde la barra superior de HomeScreen y desde la sección técnica en SettingsScreen.
 
-- Implementar servicio de desofuscación ProGuard ReTrace (ProguardRetraceService):
-  * Integración de com.guardsquare:proguard-retrace para procesar archivos mapping.txt de ProGuard/R8.
-  * Desofuscación en tiempo real de nombres de paquetes, clases, métodos y atributos en stack traces y código descompilado.
-  * Exclusión de artefactos duplicados de proguard-base en Gradle para evitar colisiones de empaquetado.
+- Persistencia y Caché Inteligente del Explorador de Archivos (ApkViewModel):
+  * Implementación de almacenamiento en memoria con ConcurrentHashMap para proyectos (projectCache) y directorios analizados (folderCache con clave "projectId::subPath").
+  * Eliminación de re-escaneos y recargas innecesarias de disco al navegar hacia atrás o salir de la visualización de un archivo.
+  * Invalidación reactiva de caché al guardar modificaciones de archivos, eliminar proyectos o purgar memoria.
+  * Incorporación de botón de refresco forzado en la barra superior de FileExplorerScreen para recarga manual a petición del usuario.
 
-- Implementar motor unificado de descompresión multi-algoritmo en streaming (DecompressionService):
-  * Soporte integral para Zstandard (zstd-jni), LZ4 (lz4-java), Brotli (brotli-dec), Bzip2 (commons-compress), XZ/LZMA, GZIP y Deflate.
-  * Detección automática de algoritmos de compresión mediante análisis de magic bytes y firmas binarias.
-  * Descompresión directa en streaming hacia context.cacheDir con búfer seguro de 32 KB para prevenir problemas de memoria (OOM).
-
-- Actualizar y refactorizar el visor/editor de datos binarios (BinaryDataParser y BinaryDataViewerContent):
-  * Integración con DecompressionService para descompresión inmediata de flujos y archivos empaquetados .dat y .bin.
-  * Integración con BouncyCastleCryptoService para análisis de integridad criptográfica y cálculo de hashes de bloques binarios.
-  * Optimizaciones en la interfaz táctil: visualización en bloques de 16 bytes, cálculo de Entropía de Shannon (0.0 a 8.0) y extractor de cadenas legibles con filtrado reactivo.
-
-- Actualizar repositorios, viewmodels y pantallas (ApkExtractorRepository, ApkViewModel, FileDetailScreen):
-  * Incorporación de flujos reactivos StateFlow para descompilación JADX (jadxDecompiledCode, isJadxDecompiling).
-  * Soporte de visualización de firmas de certificados APK en FileDetailScreen con tarjeta descriptiva de seguridad.
-  * Manejo seguro de insets del sistema (statusBarsPadding y navigationBarsPadding) preservando compatibilidad completa con pantallas móviles.
+- Soporte de Visualización de Código Ofuscado, Control de JADX y ProGuard ReTrace:
+  * Inspección de nombres ofuscados originales: configuración del motor JADX para permitir deshabilitar el auto-renombrado de identificadores sintéticos, mostrando directamente los paquetes, clases y métodos ofuscados originales (p. ej. a, b, c).
+  * Modo Fallback para APKs altamente protegidos: soporte de descompilación tolerante a fallos para estructuras de control complejas y código protegido contra decompiladores.
+  * Integración completa de ProGuard ReTrace en UI móvil: diálogo con selector de archivos del dispositivo (SAF) y campo de texto directo para cargar archivos `mapping.txt`, traduciendo automáticamente el bytecode DEX y código Java a sus firmas originales.
+  * Barra de herramientas táctil en el visor de DEX: conmutadores directos para alternar entre "🔒 Nombres Ofuscados" y "🪄 Alias JADX", activar "🛡️ Fallback", y alternar o remover el mapeo ReTrace en tiempo real.

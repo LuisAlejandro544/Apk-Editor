@@ -54,9 +54,15 @@ protobufJava = "3.25.3"
 msgpackCore = "0.9.8"
 jacksonCbor = "2.17.1"
 sqliteJdbc = "3.45.3.0"
+jadxCore = "1.5.6"
+proguardRetrace = "7.9.1"
+bouncyCastle = "1.85.2"
 
 
 [libraries]
+jadx-core = { group = "io.github.skylot", name = "jadx-core", version.ref = "jadxCore" }
+proguard-retrace = { group = "com.guardsquare", name = "proguard-retrace", version.ref = "proguardRetrace" }
+bouncy-castle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncyCastle" }
 tika-core = { group = "org.apache.tika", name = "tika-core", version.ref = "tikaCore" }
 zstd-jni = { group = "com.github.luben", name = "zstd-jni", version.ref = "zstdJni" }
 lz4-java = { group = "org.lz4", name = "lz4-java", version.ref = "lz4Java" }

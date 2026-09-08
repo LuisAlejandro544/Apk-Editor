@@ -1,21 +1,33 @@
-feat: apartado de configuración con soporte para Material You y corrección de pantalla completa (Edge-to-Edge)
+feat: motor de descompilación JADX Core, auditoría criptográfica con BouncyCastle, desofuscación ProGuard ReTrace y descompresión multi-algoritmo
 
-- Crear modelo de datos AppThemeMode en com.example.model con opciones de personalización:
-  * Color Predeterminado (Cyber Dark): paleta de ingeniería inversa de alto contraste con Azul Pizarra, Cian, Menta y Ámbar.
-  * Material You (Color Dinámico): integración con el motor Monet de Android 12+ (API 31+) que extrae y sincroniza los colores del fondo de pantalla del dispositivo móvil.
-- Implementar SettingsScreen en com.example.ui.screens:
-  * Selector interactivo de temas con tarjetas táctiles, vista previa visual de paletas cromáticas e indicador dinámico de versión de Android.
-  * Detección de compatibilidad en tiempo real para Android 12+ (Build.VERSION.SDK_INT >= 31) con mensaje informativo y fallback elegante a Cyber Dark en dispositivos anteriores.
-  * Sección de diagnóstico e información sobre el modo Pantalla Completa (Edge-to-Edge) y ajuste seguro de márgenes.
-  * Botón de acceso directo a Configuración en la barra superior de HomeScreen.
-- Habilitar soporte de colores dinámicos en MyApplicationTheme (Theme.kt):
-  * Conmutación reactiva a dynamicDarkColorScheme(context) cuando Material You está activo en Android 12+.
-  * Configuración de barras del sistema completamente transparentes para dibujo de borde a borde auténtico.
-- Solucionar problema de visualización y corte en modo pantalla completa (Edge-to-Edge):
-  * Aplicar Modifier.statusBarsPadding() en las barras superiores (topBar) de FileDetailScreen, HomeScreen, FileExplorerScreen, InstalledAppsScreen y CacheManagerScreen, evitando que la hora, porcentaje de batería o muescas de cámara (notch) corten u oculten títulos y botones.
-  * Incorporar Modifier.navigationBarsPadding() en el contenido y listas desplazables para proteger controles y acciones contra la barra de navegación táctil inferior (gestos / 3 botones).
-  * Ajustar ExtractionScreen con márgenes seguros para barra de estado y navegación.
-- Extender ApkViewModel con gestión y persistencia de themeMode:
-  * Flujo StateFlow reactivo respaldado en SharedPreferences (apk_app_theme_prefs) para conservar la preferencia de color del usuario al reiniciar la app.
-- Registrar nueva ruta Screen.Settings en Screen.kt y NavHost de MainActivity.
-- Agregar suite de pruebas unitarias AppSettingsUnitTest para validar la integridad de estados y metadatos de configuración.
+- Integrar servicio de descompilación Java de alto nivel con JADX Core (JadxDecompilerService):
+  * Adición de io.github.skylot:jadx-core para descompilar bytecode Dalvik (.dex) a código fuente Java real y estructurado directamente en el teléfono móvil.
+  * Configuración de JadxArgs con desofuscación heurística, saneamiento defensivo de identificadores no válidos y resolución transversal de dependencias de clases.
+  * Conmutador en FileDetailScreen para alternar dinámicamente entre desensamblado Smali (baksmali) y código Java recompilado por JADX con resaltado y selector de clases.
+  * Operaciones en segundo plano mediante ComputeDispatcher en ApkViewModel para evitar bloqueos del hilo principal de UI.
+
+- Implementar suite criptográfica y análisis de certificados con BouncyCastle (BouncyCastleCryptoService):
+  * Adición de org.bouncycastle:bcprov-jdk18on y bcpkix-jdk18on para auditoría forense de firmas APK en el directorio META-INF/ (.RSA, .DSA, .EC, MANIFEST.MF, CERT.SF).
+  * Extracción de certificados X.509, sujeto (Subject), emisor (Issuer), número de serie, algoritmo de firma y períodos de vigencia.
+  * Cálculo de huellas digitales criptográficas (Fingerprints) en SHA-256, SHA-1 y MD5 con botones de copiado rápido al portapapeles.
+  * Soporte de hashes avanzados (SHA3-256, Keccak, RIPEMD-160) y decodificación ASN.1 / PKCS#7 SignedData.
+
+- Implementar servicio de desofuscación ProGuard ReTrace (ProguardRetraceService):
+  * Integración de com.guardsquare:proguard-retrace para procesar archivos mapping.txt de ProGuard/R8.
+  * Desofuscación en tiempo real de nombres de paquetes, clases, métodos y atributos en stack traces y código descompilado.
+  * Exclusión de artefactos duplicados de proguard-base en Gradle para evitar colisiones de empaquetado.
+
+- Implementar motor unificado de descompresión multi-algoritmo en streaming (DecompressionService):
+  * Soporte integral para Zstandard (zstd-jni), LZ4 (lz4-java), Brotli (brotli-dec), Bzip2 (commons-compress), XZ/LZMA, GZIP y Deflate.
+  * Detección automática de algoritmos de compresión mediante análisis de magic bytes y firmas binarias.
+  * Descompresión directa en streaming hacia context.cacheDir con búfer seguro de 32 KB para prevenir problemas de memoria (OOM).
+
+- Actualizar y refactorizar el visor/editor de datos binarios (BinaryDataParser y BinaryDataViewerContent):
+  * Integración con DecompressionService para descompresión inmediata de flujos y archivos empaquetados .dat y .bin.
+  * Integración con BouncyCastleCryptoService para análisis de integridad criptográfica y cálculo de hashes de bloques binarios.
+  * Optimizaciones en la interfaz táctil: visualización en bloques de 16 bytes, cálculo de Entropía de Shannon (0.0 a 8.0) y extractor de cadenas legibles con filtrado reactivo.
+
+- Actualizar repositorios, viewmodels y pantallas (ApkExtractorRepository, ApkViewModel, FileDetailScreen):
+  * Incorporación de flujos reactivos StateFlow para descompilación JADX (jadxDecompiledCode, isJadxDecompiling).
+  * Soporte de visualización de firmas de certificados APK en FileDetailScreen con tarjeta descriptiva de seguridad.
+  * Manejo seguro de insets del sistema (statusBarsPadding y navigationBarsPadding) preservando compatibilidad completa con pantallas móviles.

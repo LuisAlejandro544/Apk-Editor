@@ -1,63 +1,55 @@
 # AI Context (Contexto de Inteligencia Artificial)
 
-Este documento condensa la información fundamental que cualquier modelo de IA o agente autónomo necesita para comprender el propósito, diseño, restricciones y estado técnico del proyecto.
+Este documento condensa la información fundamental que cualquier modelo de IA o agente autónomo necesita para comprender el propósito, arquitectura, restricciones y estado técnico del proyecto.
 
 ---
 
 ## 1. Misión del Proyecto
-Construir una suite completa de extracción, inspección, auditoría, desensamblado, análisis de recursos, edición binaria e ingeniería inversa de paquetes APK que opere **100% de manera autónoma en un teléfono móvil Android**, sin necesidad de ordenador personal ni terminal ADB.
+Proporcionar un entorno integral y autónomo de ingeniería inversa, descompilación estructural de código, auditoría forense de firmas criptográficas, análisis de recursos compilados y edición binaria que opere **100% de manera local en un teléfono inteligente Android**, sin depender de ordenador personal ni terminal ADB.
 
-## 2. Perfil del Usuario
-- El usuario opera exclusivamente desde un **dispositivo móvil (teléfono Android)** con pantalla táctil, sin acceso a una PC ni emulador de escritorio.
-- El canal de distribución prioritario es **Uptodown** o distribución independiente de APKs, no Google Play Store. No deben recortarse permisos legítimos como `QUERY_ALL_PACKAGES`.
-- Prioridad total a la **funcionalidad completa de las dependencias** por encima del peso final del APK. No implementar soluciones improvisadas o "sin dependencias" cuando existan bibliotecas probadas de la industria (como `ARSCLib`, `baksmali`, `dexlib2`, `Media3 ExoPlayer`, `Coil` y `apk-parser`).
+## 2. Perfil del Usuario y Restricciones de Plataforma
+- **Dispositivo Móvil Exclusivo**: El usuario final interactúa con la aplicación únicamente mediante la pantalla táctil de su teléfono móvil.
+- **Distribución Externa (Uptodown)**: La aplicación se distribuye fuera de Google Play Store; los permisos legítimos como `QUERY_ALL_PACKAGES` deben preservarse íntegramente.
+- **Dependencias 100% Funcionales de Grado Industrial**: Prioridad absoluta a la estabilidad y potencia de las dependencias oficiales sobre el peso final del APK. Queda prohibido implementar soluciones improvisadas o "sin dependencias" cuando existan bibliotecas probadas de la industria (`jadx-core`, `bouncy-castle`, `proguard-retrace`, `ARSCLib`, `baksmali`, `commons-compress`, `tika-core`, etc.).
+- **Prohibido el uso de `persist.sys.*`**: No utilizar propiedades restringidas del sistema para aceleración o ajustes.
 
-## 3. Principios Técnicos Innegociables
-1. **Prevención de Caídas de Memoria (Anti-Crash OOM)**:
-   - Todo archivo extraído de un APK se descomprime en **streaming** con un búfer estricto de 32 KB directo a la partición de almacenamiento en caché temporal (`context.cacheDir`).
-   - Está terminantemente prohibido almacenar el contenido completo de un archivo APK o sus ficheros descomprimidos en arrays de bytes en memoria RAM.
-2. **Navegación Móvil y Adaptabilidad a Pantalla Completa (Edge-to-Edge)**:
-   - Evitar modales o diálogos emergentes bloqueantes sobrecargados. Las pantallas principales son destinos completos de navegación con soporte natural para el botón 'Atrás' del sistema Android.
-   - Manejo obligatorio de `WindowInsets` mediante `Modifier.statusBarsPadding()` y `Modifier.navigationBarsPadding()` en todas las barras superiores y contenedores, garantizando que ni la hora, estado de batería, notch o barra de navegación táctil inferior solapen controles o títulos.
-3. **Personalización y Apariencia Dinámica (Material You & Cyber Dark)**:
-   - Módulo de configuración `SettingsScreen.kt` conmutable entre la paleta clásica de ingeniería inversa (`CYBER_DARK`) y la paleta adaptativa de Android 12+ Monet (`MATERIAL_YOU`).
-   - Persistencia reactiva mediante SharedPreferences en `ApkViewModel.kt`.
-4. **Pila Tecnológica Multilenguaje**:
-   - **Kotlin + Jetpack Compose**: Capa de presentación y orquestación UI reactiva en arquitectura MVVM.
-   - **C (C11)**: Integrado en el NDK para rutinas de enlace JNI y liberación segura de memoria (`rust_apk_free_string`).
-   - **C++ (C++17)**: Procesamiento de estructuras binarias.
-   - **Lua (C puro 5.4.7 oficial)**: Compilado nativamente en C en `app/src/main/cpp/lua/`, sin wrappers innecesarios ni código simulado.
-   - **Rust / Goblin & Capstone**: Crate y ABI nativa en `app/src/main/cpp/rust_core` para módulos criptográficos, análisis de estructuras binarias ELF con Goblin y desensamblado de instrucciones ASM móviles con Capstone.
-5. **Inspección de Recursos Compilados (`resources.arsc` con ARSCLib)**:
-   - Integración de `io.github.reandroid:ARSCLib` para parsear `TableBlock`, iterar sobre `PackageBlock`, `ResourceEntry` y el `StringPool` global.
-   - Componente visual `ArscViewerContent.kt` con selector de modos (Recursos vs Resumen), barra de búsqueda reactiva y chips horizontales para filtrar por tipos de recursos (`string`, `color`, `drawable`, `layout`, etc.).
-   - Tarjetas informativas con identificador hexadecimal, referencia oficial (`@string/...`) con botón de copiado rápido y visualización de valores y configuraciones.
-   - Modo de resumen estructural con métricas de paquetes registrados, StringPool global y reporte técnico exportable.
-6. **Desensamblado y Decompilación DEX (Smali & Java)**:
-   - Integración oficial de `org.smali:dexlib2` y `org.smali:baksmali` (2.5.2) para desensamblado exacto a nivel de registros, instrucciones y etiquetas Dalvik.
-   - Reconstrucción a Java estructural de alto nivel mediante `DexToJavaTranslator` para lectura amigable de clases, interfaces, campos, métodos y llamadas.
-   - Hoja modal interactiva para explorar y filtrar clases compiladas en el DEX por paquete y nombre.
-7. **Inspección y Desensamblado de Librerías Nativas ELF (.so)**:
-   - Análisis de arquitectura, entry point, endianness y protecciones de compilación (PIE, Stack Canaries, NX/DEP, RELRO) mediante el motor Goblin.
-   - Extracción de símbolos exportados y detección automática de funciones JNI (`Java_*`).
-   - Hoja modal interactiva para explorar símbolos con buscador instantáneo y filtro "⭐ Solo JNI".
-   - Desensamblado de código máquina nativo a nivel de mnemónicos ASM mediante Capstone.
-   - Identificación de dependencias compartidas (`DT_NEEDED`) y extracción de cadenas ASCII.
-8. **Visor de Medios (Coil & Media3 ExoPlayer)**:
-   - Visor de imágenes táctil con soporte para zoom gestual y paneo para formatos gráficos (PNG, JPG, WebP, GIF animado y SVG).
-   - Reproductor de audio integrado para inspeccionar archivos de sonido empaquetados en el APK (MP3, OGG, WAV, AAC, M4A, FLAC).
-9. **Decodificación y Edición de Recursos (AXML & Código)**:
-   - Uso de `com.jaredrummler:apk-parser:1.0.2` para transformar `AndroidManifest.xml` binario en texto plano estructurado.
-   - Entorno de edición táctil con numeración de líneas que permite modificar código (Smali, Java, XML, texto) y persistir las modificaciones en caché, manteniendo actualizados los hashes SHA-256 y metadatos sin corromper el almacenamiento.
-10. **Despacho Concurrente y Gestión de Memoria**:
-    - Despachadores dedicados en `AppDispatchers.kt` (`ComputeDispatcher` para parsing de ARSC, decompilación DEX y desensamblado ASM; `FastIODispatcher` para lecturas en disco).
-    - Monitor de almacenamiento dedicado (`CacheManagerScreen`) que calcula el peso de cada proyecto y permite la purga individual o total de los archivos temporales.
-11. **Suite de Análisis, Edición y Descompresión Binaria (.dat, .bin y Streams)**:
-    - **Visor y Editor Nativo (`BinaryDataViewerContent.kt` & `BinaryDataParser.kt`)**: Arquitectura especializada para visualizar y editar archivos `.dat` y `.bin` directamente desde el dispositivo móvil.
-    - **Modo Editor Hexadecimal**: Modificación en tiempo real de pares de bytes hexadecimales con validación estricta de paridad, formateador automático por bloques de 16 bytes y guardado con conversión binaria directa.
-    - **Modo Editor de Texto**: Visualización y edición en texto UTF-8/ISO-8859-1 con numeración de líneas para streams de configuración y texto binario.
-    - **Modo Inspector y Extracción de Cadenas**: Detección de magic bytes y firmas, análisis de Entropía de Shannon (0.0 - 8.0) para evaluar compresión/cifrado y buscador con extracción de strings legibles (>= 4 caracteres) con función de copiado rápido.
-    - **Identificación Mágica**: Detección de tipos MIME y estructuras binarias desconocidas mediante `org.apache.tika:tika-core`.
-    - **Compresión / Descompresión Avanzada**: Descompresión streaming con `com.github.luben:zstd-jni` (Zstandard), `org.lz4:lz4-java` (LZ4), `org.brotli:dec` (Brotli) y `org.apache.commons:commons-compress`.
-    - **Protocol Buffers y Serialización**: Inspección y decodificación de `com.google.protobuf:protobuf-java`, `org.msgpack:msgpack-core` y `com.fasterxml.jackson.dataformat:jackson-dataformat-cbor`.
-    - **Bases de Datos Embebidas**: Conector para bases de datos SQLite incrustadas vía `org.xerial:sqlite-jdbc`.
+## 3. Principios de Arquitectura Técnica
+
+1. **Descompilación Estructural a Java con JADX Core (`JadxDecompilerService.kt`)**:
+   - Ejecución integrada de `io.github.skylot:jadx-core` sobre el dispositivo móvil para traducir clases Dalvik (.dex) a código Java limpio y legible.
+   - Manejo de opciones de `JadxArgs` orientadas a desofuscación heurística, control de excepciones y resolución de referencias cruzadas.
+   - Ejecución asíncrona sobre `ComputeDispatcher` en `ApkViewModel.kt` para mantener la fluidez de la interfaz táctil.
+
+2. **Auditoría Forense Criptográfica con BouncyCastle (`BouncyCastleCryptoService.kt`)**:
+   - Integración de `org.bouncycastle:bcprov-jdk18on` y `bcpkix-jdk18on` para inspección de firmas APK en `META-INF/` (`.RSA`, `.DSA`, `.EC`, `CERT.SF`, `MANIFEST.MF`).
+   - Decodificación de certificados X.509 y estructuras PKCS#7 SignedData.
+   - Extracción de Sujeto, Emisor, Fechas de vigencia, Algoritmo de firma y cálculo instantáneo de huellas digitales (SHA-256, SHA-1, MD5).
+
+3. **Desofuscación y Mapeo con ProGuard ReTrace (`ProguardRetraceService.kt`)**:
+   - Integración de `com.guardsquare:proguard-retrace` para procesar archivos `mapping.txt` generados por ProGuard o R8.
+   - Reconstrucción de stack traces ofuscados y resolución de nombres reales de clases, métodos y campos.
+
+4. **Motor de Descompresión Multi-Algoritmo en Streaming (`DecompressionService.kt`)**:
+   - Soporte para Zstandard (`zstd-jni`), LZ4 (`lz4-java`), Brotli (`brotli-dec`), Bzip2 (`commons-compress`), XZ/LZMA, GZIP y Deflate.
+   - Detección automática de firmas binarias y descompresión en streaming con búfer estricto de 32 KB directo a `context.cacheDir`, blindando la app contra errores de falta de memoria (OOM).
+
+5. **Suite de Inspección, Edición y Extracción Binaria (.dat / .bin / streams)**:
+   - Componentes `BinaryDataViewerContent.kt` y `BinaryDataParser.kt` adaptados a la interacción táctil.
+   - Modos: Editor Hexadecimal (con validación de paridad y bloques de 16 bytes), Editor de Texto plano (UTF-8 / ISO-8859-1 con numeración de líneas) e Inspector de Entropía de Shannon (0.0 a 8.0) con extractor de cadenas legibles (>= 4 caracteres).
+   - Acceso a bases de datos SQLite incrustadas (`sqlite-jdbc`) y decodificación de Protocol Buffers (`protobuf-java`), MessagePack (`msgpack-core`) y CBOR (`jackson-dataformat-cbor`).
+
+6. **Desensamblado Dalvik y Recursos Compilados**:
+   - Smali puro con `baksmali:2.5.2` y `dexlib2` con selector interactivo de clases compiladas.
+   - Parsing de `resources.arsc` mediante `io.github.reandroid:ARSCLib` con visualización por tarjetas, copia de referencias `@string/...` y resumen del StringPool global.
+   - Decodificación transparente de binarios XML con `apk-parser`.
+
+7. **Inspección de Binarios Nativos ELF (.so)**:
+   - Análisis de arquitectura, mitigaciones de seguridad (PIE, Stack Canaries, RELRO, NX) y funciones JNI con Goblin.
+   - Desensamblado de código máquina a nivel mnemónico ASM mediante Capstone.
+
+8. **Pila Multilenguaje Nativa (`libapk_native_engine.so`)**:
+   - C (C11) para enlace JNI y gestión de memoria; C++ (C++17) para estructuras binarias; Rust para análisis ELF; Lua 5.4.7 oficial en C puro para automatización. Compilación mediante CMake 3.22.1 y NDK 26.1.
+
+9. **Diseño Visual y Pantalla Completa (Edge-to-Edge)**:
+   - Personalización reactiva entre tema clásico "Cyber Dark" y tema adaptativo "Material You" (Monet en Android 12+ / API 31+) con persistencia en SharedPreferences.
+   - Insets seguros (`statusBarsPadding` y `navigationBarsPadding`) en todas las pantallas para evitar solapamientos con la barra de estado y la barra de navegación del teléfono.

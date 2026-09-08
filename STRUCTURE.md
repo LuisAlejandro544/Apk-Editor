@@ -5,7 +5,7 @@ Mapa detallado de la arquitectura de directorios, capas de responsabilidad y com
 ```
 apk-extractor/
 ├── app/
-│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias (ARSCLib, smali, Media3, Coil, apk-parser, Tika, Zstd, LZ4, Brotli, Commons-Compress, Protobuf, MsgPack, CBOR, SQLite-JDBC)
+│   ├── build.gradle.kts                 # Configuración de compilación Android, NDK y dependencias (JADX Core, ProGuard ReTrace, BouncyCastle, ARSCLib, smali, Media3, Coil, apk-parser, Tika, Zstd, LZ4, Brotli, Commons-Compress, Protobuf, MsgPack, CBOR, SQLite-JDBC)
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml      # Permisos del sistema (SAF, QUERY_ALL_PACKAGES) y Activities
@@ -28,9 +28,13 @@ apk-extractor/
 │       │   │   │   ├── AppDispatchers.kt          # Despachadores de corrutinas optimizados (ComputeDispatcher y FastIODispatcher)
 │       │   │   │   ├── ArscParser.kt              # Parser de resources.arsc mediante io.github.reandroid:ARSCLib
 │       │   │   │   ├── BinaryDataParser.kt        # Analizador binario (.dat/.bin), cálculo de Entropía de Shannon, formateo Hex y extractor de cadenas
-│       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali con baksmali 2.5.2 e indexación de clases DEX
-│       │   │   │   ├── DexToJavaTranslator.kt     # Traductor y reconstructor de bytecode Dalvik a código Java
-│       │   │   │   └── NativeElfDisassembler.kt   # Parseo ELF con Goblin y desensamblado ASM con Capstone
+│       │   │   │   ├── BouncyCastleCryptoService.kt # Suite criptográfica: análisis de certificados X.509, firmas APK (META-INF/*.RSA), huellas SHA-256/SHA-1/MD5 y decodificación ASN.1/PKCS7
+│       │   │   │   ├── DecompressionService.kt    # Motor unificado de descompresión streaming (Zstandard, LZ4, Brotli, Bzip2, XZ/LZMA, GZIP, Deflate)
+│       │   │   │   ├── DexDisassembler.kt         # Desensamblador Smali (baksmali 2.5.2) e indexador de clases Dalvik
+│       │   │   │   ├── DexToJavaTranslator.kt     # Traductor estructural auxiliar de bytecode a pseudocódigo Java
+│       │   │   │   ├── JadxDecompilerService.kt   # Servicio de descompilación Java estructural de alto nivel mediante jadx-core
+│       │   │   │   ├── NativeElfDisassembler.kt   # Parseo ELF con Goblin y desensamblado ASM con Capstone
+│       │   │   │   └── ProguardRetraceService.kt  # Desofuscador de stack traces y símbolos mediante ProGuard ReTrace (mapping.txt)
 │       │   │   ├── model/
 │       │   │   │   ├── ApkModel.kt                # Modelos de datos: FileCategory (ARSC, DEX, ELF, AUDIO, IMAGE, BINARY_DATA), ApkProject, ExtractedFileItem, StorageInfo
 │       │   │   │   ├── AppSettings.kt             # Modelo de configuración: enum AppThemeMode (CYBER_DARK, MATERIAL_YOU)
@@ -40,9 +44,8 @@ apk-extractor/
 │       │   │   ├── ui/
 │       │   │   │   ├── components/
 │       │   │   │   │   ├── ArscViewerContent.kt       # Visor táctil interactivo de recursos ARSC con filtros y buscador
-│       │   │   │   │   ├── AudioPlayerView.kt         # Reproductor de audio nativo con AndroidX Media3 ExoPlayer
 │       │   │   │   │   ├── BinaryDataViewerContent.kt # Visor y editor táctil de archivos .dat/.bin (Hex, Texto UTF-8, Inspector de Entropía y Strings)
-│       │   │   │   │   └── ImageViewerView.kt         # Visor de imágenes con Coil Compose y zoom multitáctil
+│       │   │   │   │   └── MediaPreviewComponents.kt  # Visores multimedia: reproductor de audio nativo ExoPlayer y visor de imágenes Coil con zoom
 │       │   │   │   ├── navigation/
 │       │   │   │   │   └── Screen.kt              # Definición de rutas y destinos de navegación Compose (Home, InstalledApps, Extraction, Explorer, Detail, Cache, Settings)
 │       │   │   │   ├── screens/
@@ -50,7 +53,7 @@ apk-extractor/
 │       │   │   │   │   ├── InstalledAppsScreen.kt # Explorador y extractor de apps instaladas del sistema/usuario (con insets seguros)
 │       │   │   │   │   ├── ExtractionScreen.kt    # Vista en tiempo real del progreso de descompresión streaming
 │       │   │   │   │   ├── FileExplorerScreen.kt  # Navegador de directorios internos del APK con categorización (con insets seguros)
-│       │   │   │   │   ├── FileDetailScreen.kt    # Visor Hex Dump, Smali/Java DEX, ELF (.so), ARSC, multimedia y editor (con statusBarsPadding)
+│       │   │   │   │   ├── FileDetailScreen.kt    # Visor integral: Smali, Java (JADX Core), ELF (.so), ARSC, Certificados BouncyCastle, editor y Hex Dump
 │       │   │   │   │   ├── CacheManagerScreen.kt  # Monitor de memoria y purga de caché temporal (con insets seguros)
 │       │   │   │   │   └── SettingsScreen.kt      # Pantalla de Configuración con selector de tema (Material You vs Cyber Dark) e información Edge-to-Edge
 │       │   │   │   └── theme/
@@ -58,7 +61,7 @@ apk-extractor/
 │       │   │   │       ├── Theme.kt               # Tema Material 3 adaptativo con soporte para dynamicDarkColorScheme (Material You)
 │       │   │   │       └── Type.kt                # Tipografía con soporte monoespaciado
 │       │   │   └── viewmodel/
-│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX, ARSC, ELF, AXML, BinaryData y persistencia de tema
+│       │   │       └── ApkViewModel.kt            # StateFlows reactivos para UI, DEX (Smali/JADX), ARSC, ELF, AXML, BinaryData, Criptografía y persistencia de tema
 │       │   └── res/                               # Recursos gráficos, iconos adaptativos y strings
-│       └── test/java/com/example/                 # Suites de pruebas unitarias (AppSettingsUnitTest, BinaryDataViewerUnitTest, ArscViewerUnitTest, DexViewerUnitTest, etc.)
+│       └── test/java/com/example/                 # Suites de pruebas unitarias
 ```

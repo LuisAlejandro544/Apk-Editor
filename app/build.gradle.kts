@@ -77,6 +77,23 @@ android {
     includeInApk = false
     includeInBundle = true
   }
+  packaging {
+    resources {
+      excludes += listOf(
+        "META-INF/INDEX.LIST",
+        "META-INF/io.netty.versions.properties",
+        "META-INF/DEPENDENCIES",
+        "META-INF/LICENSE",
+        "META-INF/LICENSE.txt",
+        "META-INF/license.txt",
+        "META-INF/NOTICE",
+        "META-INF/NOTICE.txt",
+        "META-INF/notice.txt",
+        "META-INF/ASL2.0",
+        "META-INF/*.kotlin_module"
+      )
+    }
+  }
 }
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
@@ -84,6 +101,11 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
+  implementation(libs.jadx.core)
+  implementation(libs.proguard.retrace) {
+    exclude(group = "com.guardsquare", module = "proguard-base")
+  }
+  implementation(libs.bouncy.castle)
   implementation(libs.arsclib)
   implementation(libs.apk.parser)
   implementation(libs.smali.dexlib2)
